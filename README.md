@@ -1,164 +1,155 @@
 # ChronosArt
 
-> **Training-Free Style Personalization with Visual Autoregressive Models**
+> **Reproduction & Extension of *"A Training-Free Style-Personalization via SVD-Based Feature Decomposition"***  
+> Training-Free Style Personalization on Visual Autoregressive Transformers (Infinity-2B) with Safe Stochastic Generation.
 
-ChronosArt implements high-fidelity, training-free style transfer on visual autoregressive transformers (specifically **Infinity-2B**). By extracting multiscale cumulative features, constructing principal style residuals, and projecting away content-aligned components, ChronosArt seamlessly transfers texture and artistic appearance from a reference style image while strictly preserving content structure, geometry, and composition.
-
----
-
-## Method Overview
-
-ChronosArt operates concurrently on a clean content stream and an editable stylized stream sharing the same prompt conditioning:
-
-1. **Multiscale Feature Extraction:** Extracts cumulative VAE representations across autoregressive resolution scales ($1\times 1 \to 32\times 32$).
-2. **Principal Feature Blending (PFB):** Derives a low-rank style residual via Singular Value Decomposition (SVD) between reference style features and generation features.
-3. **Content Subspace Projection:** Estimates an empirical low-rank content basis from the clean stream and removes residual components aligned with this basis, preventing content corruption and semantic bleeding.
-4. **Scale-Aware Geometric Decay:** Injects the purified style signal with decaying strength across coarse-to-fine scales.
-5. **Structural Attention Correction (SAC):** Enforces query-key preservation in self-attention layers to anchor geometric alignment throughout autoregressive refinement.
+[![GitHub Pages](https://img.shields.io/badge/GitHub%20Pages-Wildlife%20Camera%20Roll-brightgreen)](https://xdnhatnguyen.github.io/ChronosArt/)
+[![Paper](https://img.shields.io/badge/Literature%20Review-PDF-red)](report/Literature%20Review:%20SVD-Based%20Feature%20Decomposition.pdf)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 ---
 
-## Repository Layout
+## 📌 Overview
+
+**ChronosArt** reproduces and extends the foundational methodology of **"A Training-Free Style-Personalization via SVD-Based Feature Decomposition"** using state-of-the-art Visual Autoregressive transformers (**Infinity-2B**).
+
+The framework transfers high-frequency artistic brushwork, textures, and color schemes from arbitrary reference images without model fine-tuning or test-time optimization, operating in **~2.0s per image** at 512×512 resolution.
+
+### Core Architectural Components:
+1. **Visual Autoregressive Modeling (Infinity-2B):** Predicts multi-scale discrete token distributions across 10 progressive resolution scales ($1\times 1 \to 64\times 64$).
+2. **Principal Feature Blending (PFB):** Formulates truncated SVD with exponential singular value decay ($\Phi_{r, \alpha}(\mathbf{F}_s) = \sum_{i=1}^r e^{-\alpha(i-1)} \sigma_i \mathbf{u}_i \mathbf{v}_i^\top$) to extract dominant style representations while suppressing content interference.
+3. **Structural Attention Correction (SAC):** Enforces Query-Key synchrony from a clean content inference stream into the generation self-attention layers ($\mathbf{A}_s^{\text{gen}} \leftarrow \text{softmax}(\mathbf{Q}_s^{\text{con}} (\mathbf{K}_s^{\text{con}})^\top / \sqrt{d})$), locking anatomical structure and geometry.
+4. **Safe Stochastic Generation:** Introduces scale-scheduled temperature ($\tau_{\text{coarse}} = 0.15 \to \tau_{\text{fine}} \in [0.85, 1.25]$) and fine-scale spatial token jittering to sample unique micro-brushstroke variations per seed without geometric deformation.
+
+---
+
+## 📂 Repository Structure
 
 ```text
 .
-├── Infinity/            # Vendored FoundationVision Infinity engine
+├── docs/                       # Interactive Wildlife Camera Roll web exhibition (GitHub Pages)
+│   ├── assets/                 # WebP frames, favicon, and report PDF
+│   ├── css/style.css           # Camera roll whiteboard styling (Camroll inspired)
+│   ├── data/animals_dual.json  # 10 species metadata across 3 stochastic seeds
+│   ├── js/app.js               # Draggable whiteboard and live stochastic jump engine
+│   └── index.html              # Main web project page
+├── third-party/
+│   └── Infinity/               # FoundationVision Infinity-2B engine
+├── data/
+│   └── csd100/                 # CSD100 benchmark reference image pairs
+├── report/
+│   └── Literature Review: SVD-Based Feature Decomposition.pdf
 ├── src/
-│   └── chronosart/      # Core package: PFB, SAC, feature hypotheses, and metrics
-├── scripts/             # Production CLIs for downloading, generation, and batch runs
-│   ├── download_infinity_weights.py
-│   ├── run_pfb_sac.py
-│   ├── run_incremental_pfb_sac.py
-│   ├── run_10x5_eval.py
-│   ├── run_content_ortho_multiscale_decay_batch.py
-│   ├── run_content_projection_batch.py
-│   ├── run_original_pfb_sac_batch.py
-│   └── evaluate_content_ortho_clip.py
-├── prompts/             # Benchmark content prompts (Parti-190) and manifests
-├── styles/              # Curated style references (FineStyle-21) and metadata
-├── csd100/              # Step-wise analysis reference pairs
-├── notebooks/           # Interactive exploration notebooks
-└── tests/               # CPU verification test suite
+│   └── chronosart/             # Core Python package
+│       ├── bootstrap.py        # Infinity runtime patching & model loader
+│       ├── clip_metrics.py     # CLIP text alignment & style similarity metrics
+│       ├── config.py           # Experiment configuration dataclasses
+│       ├── dataset.py          # Dataset loading utilities
+│       ├── svd_blending.py     # SVD truncated decomposition & PFB implementation
+│       ├── style_transfer.py   # Full dual-stream PFB + SAC inference engine
+│       ├── stepwise_analysis.py# Layer-wise & scale-wise feature analysis
+│       ├── csd100_pairs.py     # CSD100 benchmark case loader
+│       ├── csd100_evaluator.py # CSD100 evaluation pipeline
+│       └── plotting.py         # Visualization and grid export utilities
+├── scripts/                    # Production CLIs & reproduction runners
+│   ├── download_weights.py     # Download Infinity-2B checkpoints & VAE
+│   ├── infer_style_transfer.py # Single-image PFB + SAC style generation
+│   ├── infer_incremental.py    # Incremental generation with auto-naming
+│   ├── eval_paper_teaser.py    # Reproduce teaser 3×6 evaluation cases
+│   ├── eval_paper_batch.py     # Batch evaluation runner for paper styles
+│   ├── eval_10x5_grid.py       # 10 prompts × 5 styles evaluation matrix
+│   ├── eval_stochastic_sampling.py # Stochasticity temperature & jitter runner
+│   ├── compute_clip_metrics.py # Compute CLIP style & text alignment scores
+│   └── generate_zoo_showcase.py# Generate multi-seed assets for web exhibition
+└── README.md
 ```
 
 ---
 
-## Quickstart
+## 🚀 Quickstart
 
 ### 1. Environment Setup
 
-Create and activate a Python 3.10 environment (e.g. conda environment `var`):
+Create and activate a Python 3.10 environment:
 
 ```bash
-conda create -n var python=3.10 -y
-conda activate var
+conda create -n chronosart python=3.10 -y
+conda activate chronosart
 
-# Install PyTorch with CUDA 12.4
+# Install PyTorch with CUDA support
 pip install torch torchvision --index-url https://download.pytorch.org/whl/cu124
 
-# Install Infinity dependencies & utilities
-pip install -r Infinity/requirements.txt
-pip install huggingface_hub hf-transfer pytest
+# Install requirements
+pip install -r third-party/Infinity/requirements.txt
+pip install huggingface_hub hf-transfer ftfy regex rembg
 ```
 
-Link the source package into your environment:
+Link the local packages into your environment:
 
 ```bash
-python3 -c "import site, pathlib; p = pathlib.Path(site.getsitepackages()[0]) / 'chronosart.pth'; p.write_text(str(pathlib.Path('src').resolve()) + '\n' + str(pathlib.Path('Infinity').resolve()) + '\n')"
+python3 -c "import site, pathlib; p = pathlib.Path(site.getsitepackages()[0]) / 'chronosart.pth'; p.write_text(str(pathlib.Path('src').resolve()) + '\n' + str(pathlib.Path('third-party/Infinity').resolve()) + '\n')"
 ```
 
-### 2. Download Model Checkpoints
+### 2. Download Checkpoints
 
-Download official **Infinity-2B**, the compatible **d32reg VAE**, and **FLAN-T5-XL** tokenizer/encoder weights:
+Download official **Infinity-2B**, **d32reg VAE**, and **FLAN-T5-XL** text encoder weights:
 
 ```bash
-HF_HUB_ENABLE_HF_TRANSFER=1 python3 scripts/download_infinity_weights.py --output-dir weights
+HF_HUB_ENABLE_HF_TRANSFER=1 python3 scripts/download_weights.py --output-dir weights
 ```
 
 ---
 
-## Running Inference
+## 🎨 Running Inference
 
-### Single Image Generation
-
-Generate a stylized image using dual-path PFB + SAC:
+### Single Image Style Personalization (PFB + SAC)
 
 ```bash
-python3 scripts/run_pfb_sac.py \
-  --prompt "a cat" \
-  --style-image styles/style_04_kid_crayon_drawing.png \
-  --output output/test_01.png
+python3 scripts/infer_style_transfer.py \
+  --prompt "A kettle" \
+  --style-image styles/08_pencil_sketch.png \
+  --output output/kettle_pencil.png
 ```
 
-To run sequential generations with automatically incrementing filenames (`output/test_01.png`, `test_02.png`, ...):
+### Reproducing Paper Benchmark (Teaser 3×6 Cases)
 
 ```bash
-python3 scripts/run_incremental_pfb_sac.py \
-  --prompt "a cat" \
-  --style-image styles/style_04_kid_crayon_drawing.png
+python3 scripts/eval_paper_teaser.py \
+  --weights-dir weights \
+  --output-dir output/paper_teaser
 ```
 
-### Parallel Batch Evaluation (Multi-GPU)
-
-Evaluate an $M \times N$ matrix of prompts and styles with multi-GPU sharding:
+### Evaluating Safe Stochastic Brushwork
 
 ```bash
-# GPU 0 (Shard 0)
-CUDA_VISIBLE_DEVICES=0 python3 scripts/run_10x5_eval.py --shard-index 0 --num-shards 2
-
-# GPU 1 (Shard 1)
-CUDA_VISIBLE_DEVICES=1 python3 scripts/run_10x5_eval.py --shard-index 1 --num-shards 2
-```
-
-Outputs will be saved under `output/grid_10x5/` with generated images, clean content references, and tri-panel comparison strips.
-
-### Content-Orthogonal Multiscale Paper Configuration
-
-Run the complete content-projected multiscale decay schedule across the benchmark:
-
-```bash
-python3 scripts/run_content_ortho_multiscale_decay_batch.py
+python3 scripts/eval_stochastic_sampling.py \
+  --prompt "A noble lion with a majestic mane" \
+  --style-image styles/08_pencil_sketch.png \
+  --seeds 42 108 999 \
+  --output-dir output/lion_stochastic
 ```
 
 ---
 
-## Python API Usage
+## 🌐 Interactive Wildlife Camera Roll
 
-Intervene directly on latent VAE feature representations:
+The project includes an interactive whiteboard web application inspired by camera roll brainstorm boards:
+- **Pannable Whiteboard Canvas:** Freely drag and pan across 10 wild animal species.
+- **Layered Polaroid Stacks & Pastel Notes:** Realistic 3-layer photo piles with handwritten field notes.
+- **Live Stochastic Animation:** Click any snapshot to zoom into the stage and watch real-time stop-motion brushwork cycling between seeds.
+- **Dual Exhibition:** Instant switching between **Pencil Sketch** and **Colorful Origami**.
 
-```python
-import torch
-from chronosart.feature_hypotheses import projected_pfb_content_blend
-
-# generation_feature, style_feature, content_feature: [B, C, H, W]
-edited_feature, diagnostics = projected_pfb_content_blend(
-    generation_feature=gen_feat,
-    style_feature=style_feat,
-    content_feature=content_feat,
-    style_rank=1,
-    content_rank=1,
-    projection_strength=1.0,
-    preserve_mean=False,
-    return_diagnostics=True,
-)
-
-print("Explained variance:", diagnostics["content_explained_variance"])
-print("Removed fraction:", diagnostics["removed_fraction"])
-```
-
----
-
-## Verification & Tests
-
-Run CPU unit tests to verify feature projection invariants, orthogonality preservation, and rank adaptivity:
-
+Run the local server:
 ```bash
-python3 -m pytest -q tests
-python3 -m compileall -q src scripts Infinity/infinity/models
+python3 -m http.server 8088 --directory docs
 ```
+Visit `http://localhost:8088/` in your browser.
 
 ---
 
-## License
+## 📜 Acknowledgements
 
-This project incorporates the Infinity framework under the Apache 2.0 license.
+This project implements and builds upon:
+- **Paper:** *"A Training-Free Style-Personalization via SVD-Based Feature Decomposition"*
+- **Base Model:** [FoundationVision Infinity](https://github.com/FoundationVision/Infinity) (Visual Autoregressive Modeling)
+- **Text Conditioning:** Google [FLAN-T5-XL](https://huggingface.co/google/flan-t5-xl)

@@ -31,7 +31,12 @@ def build_runtime_paths(config: ExperimentConfig) -> RuntimePaths:
     elif not root.is_absolute():
         root = runtime_root / root
     project_root = _find_project_root(Path.cwd())
-    official_dir = Path(config.infinity_source_dir) if config.infinity_source_dir is not None else Path("Infinity")
+    if config.infinity_source_dir is not None:
+        official_dir = Path(config.infinity_source_dir)
+    elif (project_root / "third-party" / "Infinity").exists():
+        official_dir = project_root / "third-party" / "Infinity"
+    else:
+        official_dir = project_root / "Infinity"
     if not official_dir.is_absolute():
         official_dir = project_root / official_dir
     port_dir = root / "gguf_port"

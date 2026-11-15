@@ -3,10 +3,10 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>ChronosArt: Living Wildlife Camera Roll &amp; Stochastic Artistry</title>
-  <meta name="description" content="ChronosArt: Living Wildlife Camera Roll in Training-Free Style Personalization with Visual Autoregressive Models (Infinity-2B) and Content-Orthogonal Feature Projection.">
+  <title>ChronosArt: SVD-Based Style Personalization &amp; Wildlife Camera Roll</title>
+  <meta name="description" content="ChronosArt: Training-Free Style-Personalization via SVD-Based Feature Decomposition on Visual Autoregressive Models (Infinity-2B) with Wildlife Camera Roll.">
   <link rel="stylesheet" href="css/style.css">
-  <link rel="icon" type="image/png" href="assets/style_pencil_sketch.png">
+  <link rel="icon" type="image/jpeg" href="assets/favicon.jpg">
 </head>
 <body id="top">
 
@@ -47,7 +47,7 @@
           <span>↺ Shuffle</span>
         </button>
 
-        <a class="action-btn" href="report/report.pdf" target="_blank" title="Technical Report PDF">
+        <a class="action-btn" href="assets/Literature_Review_SVD_Based_Feature_Decomposition.pdf" target="_blank" title="Technical Report PDF">
           <span>📄 Paper</span>
         </a>
         <a class="action-btn" href="https://github.com/xdnhatnguyen/ChronosArt" target="_blank" title="GitHub Code">
@@ -63,20 +63,19 @@
 
       <!-- Central Hero Anchor Card (Floating naturally on the board like Camroll) -->
       <div class="hero-anchor" id="hero-anchor">
-        <div class="hero-eyebrow">CHRONOSART &bull; TRAINING-FREE STYLE PERSONALIZATION</div>
+        <div class="hero-eyebrow">CHRONOSART &bull; SVD-BASED FEATURE DECOMPOSITION</div>
         <h1 class="hero-title">
           If an Autoregressive Model created wildlife art, <mark class="marker-highlight">what would it draw?</mark>
         </h1>
         <p class="hero-subtitle">
-          Explore 10 wild species rendered with zero-shot stochastic brushwork &amp; paper folds.
-          Click any polaroid stack to watch its living micro-stroke stochastic sequence.
+          Reproduction of <em>"A Training-Free Style-Personalization via SVD-Based Feature Decomposition"</em> on Visual Autoregressive Models (Infinity-2B) with safe stochastic brushwork &amp; paper folds.
         </p>
         
         <div class="hero-badges">
           <span class="pill-tag">✨ Infinity-2B AR Model</span>
-          <span class="pill-tag">📐 Content-Orthogonal Projection</span>
-          <span class="pill-tag">🎲 3 Seeds Stochastic Jump</span>
-          <span class="pill-tag">✂️ SAM Cutout</span>
+          <span class="pill-tag">🎨 SVD Principal Feature Blending (PFB)</span>
+          <span class="pill-tag">📐 Structural Attention Correction (SAC)</span>
+          <span class="pill-tag">🎲 Safe Stochasticity</span>
         </div>
 
         <div class="hero-tip">
@@ -121,10 +120,9 @@
               </div>
             </div>
 
-            <div class="visual-controls">
-              <button class="stage-control-btn active" id="btn-modal-toggle-cutout" title="Toggle SAM Transparent Background">
-                <span>✂️ Transparent (SAM)</span>
-              </button>
+            <div class="live-status-pill">
+              <span class="status-dot"></span>
+              <span id="live-indicator-text">Stochastic Brushwork Active</span>
             </div>
           </div>
         </div>
@@ -141,7 +139,7 @@
           <div class="seed-scrubber-box">
             <div class="scrubber-label">
               <span>Stochastic Seeds Variation:</span>
-              <span class="seed-live-tag" id="seed-live-tag">● Seed #42 (Frame 0)</span>
+              <span class="seed-live-tag" id="seed-live-tag">● Seed #42 (Variant A)</span>
             </div>
             <div class="seed-buttons-row">
               <button class="seed-btn active" data-seed-idx="0">
@@ -158,7 +156,7 @@
               </button>
             </div>
             <p class="seed-hint">
-              Scale-scheduled temperature (&tau; = 0.15 &rarr; 1.25) &amp; fine-scale style token jittering sample unique brushwork contours without distorting anatomy.
+              Scale-scheduled temperature (&tau; = 0.15 &rarr; 1.25) &amp; fine-scale style token jittering sample unique micro-brushstrokes per seed while preserving anatomical geometry.
             </p>
           </div>
 
@@ -197,7 +195,7 @@
         <div class="section-eyebrow">THEORY &amp; ARCHITECTURE</div>
         <h2 class="sec-title">Method Overview</h2>
         <p class="sec-desc">
-          ChronosArt is a training-free style personalization framework tailored for Visual Autoregressive (Infinity-2B) models, executing in ~2.0s per image without test-time fine-tuning.
+          Implementation of <em>"A Training-Free Style-Personalization via SVD-Based Feature Decomposition"</em> on Visual Autoregressive (Infinity-2B) models with safe stochasticity.
         </p>
       </div>
 
@@ -206,31 +204,31 @@
           <div class="pipe-step-num">STEP 01</div>
           <div class="pipe-title">Scale-wise AR Prediction</div>
           <div class="pipe-text">
-            Flan-T5 encodes prompt semantics, while Infinity-2B predicts coarse-to-fine residual feature maps across 10 scales ($1\times 1 \to 64\times 64$).
+            Flan-T5 encodes prompt semantics, while Infinity-2B predicts next-scale residual token representations from coarse to fine ($1\times 1 \to 64\times 64$).
           </div>
         </div>
 
         <div class="pipe-card">
           <div class="pipe-step-num">STEP 02</div>
-          <div class="pipe-title">Content-Orthogonal Projection</div>
+          <div class="pipe-title">Principal Feature Blending (PFB)</div>
           <div class="pipe-text">
-            Orthogonal projector $\mathbf{P}_s^{\perp} = \mathbf{I} - \mathbf{B}_s (\mathbf{B}_s)^\top$ strips content subspace directions from style residuals, preventing leakage.
+            Decomposes style representations via truncated SVD $\Phi_{r, \alpha}(\mathbf{F}_s) = \sum_{i=1}^r e^{-\alpha(i-1)} \sigma_i \mathbf{u}_i \mathbf{v}_i^\top$, extracting leading style directions while discarding content interference.
           </div>
         </div>
 
         <div class="pipe-card">
           <div class="pipe-step-num">STEP 03</div>
-          <div class="pipe-title">Safe Stochasticity</div>
+          <div class="pipe-title">Structural Attention Correction (SAC)</div>
           <div class="pipe-text">
-            Low temperature $\tau_{\text{coarse}} = 0.15$ anchors anatomy, while $\tau_{\text{fine}} \in [0.85, 1.25]$ combined with spatial token shuffling generates rich stroke diversity.
+            Forces generation self-attention layers to synchronize Query-Key maps with the content stream ($\mathbf{Q}_s^{\text{gen}} \leftarrow \mathbf{Q}_s^{\text{con}}, \mathbf{K}_s^{\text{gen}} \leftarrow \mathbf{K}_s^{\text{con}}$) to anchor anatomical geometry.
           </div>
         </div>
 
         <div class="pipe-card">
           <div class="pipe-step-num">STEP 04</div>
-          <div class="pipe-title">SAM / Rembg Segmentation</div>
+          <div class="pipe-title">Safe Stochastic Generation</div>
           <div class="pipe-text">
-            Zero-shot segmentation strips background canvas artifacts, producing lightweight transparent WebP assets (~40KB) for fluid browser animation.
+            Scale-scheduled temperature ($\tau_{\text{coarse}} = 0.15 \to \tau_{\text{fine}} \in [0.85, 1.25]$) and fine-scale token jittering produce distinct brushwork textures per seed without shape collapse.
           </div>
         </div>
       </div>
@@ -245,7 +243,7 @@
       </p>
       <div class="footer-links">
         <a href="https://github.com/xdnhatnguyen/ChronosArt" target="_blank">GitHub Repository</a>
-        <a href="report/report.pdf" target="_blank">Technical Report</a>
+        <a href="assets/Literature_Review_SVD_Based_Feature_Decomposition.pdf" target="_blank">Literature Review (PDF)</a>
         <a href="#top">Back to top &uarr;</a>
       </div>
     </div>
