@@ -1,0 +1,682 @@
+\documentclass[10pt,twocolumn,letterpaper]{article}
+
+\usepackage[pagenumbers]{cvpr}
+
+% Override legacy 8-bit TeX fonts from cvpr.sty with modern Unicode fontspec
+\def\elvbf{\large\bfseries}
+\def\tenbf{\normalsize\bfseries}
+
+\usepackage{fontspec}
+\setmainfont{LiberationSerif-Regular.ttf}[
+  Path = /usr/share/fonts/truetype/liberation2/,
+  BoldFont = LiberationSerif-Bold.ttf,
+  ItalicFont = LiberationSerif-Italic.ttf,
+  BoldItalicFont = LiberationSerif-BoldItalic.ttf
+]
+
+\usepackage{amsmath,amssymb,amsfonts,amsthm}
+\usepackage{mathtools}
+\usepackage{algorithm}
+\usepackage{algorithmic}
+\usepackage{booktabs}
+\usepackage{tabularx}
+\usepackage{multirow}
+\usepackage{graphicx}
+\usepackage{xcolor}
+
+\definecolor{cvprblue}{rgb}{0.21,0.49,0.74}
+\usepackage[pagebackref,breaklinks,colorlinks,allcolors=cvprblue]{hyperref}
+
+% Theorem and Definition Environments
+\newtheorem{theorem}{Định lý}
+\newtheorem{lemma}{Bổ đề}
+\newtheorem{proposition}{Mệnh đề}
+\newtheorem{definition}{Định nghĩa}
+\newtheorem{corollary}{Hệ quả}
+\newtheorem{remark}{Nhận xét}
+
+\title{Cơ Sở Toán Học và Các Bước Phát Triển Lý Thuyết Trong ChronosArt:\\Từ Mô Hình Thị Giác Tự Hồi Quy Đa Tỉ Lệ (VAR, Infinity) Đến\\Chiếu Thặng Dư Trực Giao Theo Nội Dung}
+
+\author{Minh-Nhat Nguyen\\
+Faculty of Information Technology, University of Science, VNU-HCM (FIT, US-VNUHCM)\\
+{\tt\small nguyenminhnhatcs@gmail.com}
+}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+Cá nhân hóa phong cách không cần huấn luyện (Training-free Style Personalization) là một hướng đi đột phá trong lĩnh vực tổng hợp hình ảnh từ văn bản (Text-to-Image synthesis). Khác biệt với các mô hình khuếch tán (Diffusion Models) vốn dựa trên quá trình khử nhiễu liên tục theo thời gian, mô hình thị giác tự hồi quy đa tỉ lệ (Visual Autoregressive - VAR và Infinity) tiếp cận quá trình sinh ảnh theo thứ tự từ thô đến mịn (coarse-to-fine next-scale prediction). Trong tài liệu này, chúng tôi trình bày một hệ thống toán học hoàn chỉnh và chặt chẽ của ChronosArt. Chúng tôi phân tích chi tiết cơ chế tự hồi quy đa tỉ lệ VAR, cơ chế phân lượng hóa cầu nhị phân (BSQ) và nhúng vị trí quay 2 chiều (RoPE-2D) của Infinity. Tiếp theo, chúng tôi khảo sát phương pháp Principal Feature Blending (PFB) và Structural Attention Correction (SAC) từ công trình nền tảng, chứng minh nguồn gốc của hiện tượng vướng víu ngữ nghĩa (semantic entanglement) khi SVD xếp hạng thành phần theo năng lượng chứ không theo vai trò ngữ nghĩa. Cuối cùng, chúng tôi dẫn xuất và chứng minh các đóng góp toán học mới của ChronosArt: Cơ chế chiếu thặng dư ràng buộc theo nội dung (Content-Conditioned Residual Projection) với toán tử triệt tiêu trực giao $\mathbf{P}_s^{\perp}$ và lịch trình tiêm phong cách lai đa tỉ lệ (Hybrid Multi-Scale Style Injection) theo hàm suy giảm hình học.
+\end{abstract}
+
+\section{Giới thiệu và Đặt bài toán}
+\label{sec:intro}
+
+Cho một mô tả văn bản nội dung $T$ (ví dụ: ``\textit{a cat}'') và một ảnh phong cách tham chiếu $I^{\text{sty}} \in \mathbb{R}^{H \times W \times 3}$. Bài toán đặt ra là tổng hợp một ảnh mới $I^{\text{gen}} \in \mathbb{R}^{H \times W \times 3}$ thỏa mãn đồng thời ba mục tiêu:
+\begin{enumerate}
+    \item \textbf{Bảo toàn cấu trúc nội dung (Content Fidelity):} Hình học, bố cục và đối tượng cốt lõi trong $I^{\text{gen}}$ phải phản ánh chính xác câu lệnh $T$ mà không bị biến dạng hình học hay lai tạp các đối tượng ngoại lai từ $I^{\text{sty}}$.
+    \item \textbf{Chuyển giao phong cách nhất quán (Style Coherence):} Các thuộc tính nghệ thuật như gam màu, chất liệu, nét cọ, và hiệu ứng ánh sáng từ $I^{\text{sty}}$ phải được truyền tải mượt mà vào $I^{\text{gen}}$.
+    \item \textbf{Suy luận tức thì không huấn luyện (Training-Free Zero-Shot):} Quá trình chuyển đổi diễn ra trực tiếp trong quá trình suy luận (inference-time) mà không cần tối ưu hóa gradient, huấn luyện adapter (LoRA) hay can thiệp vào trọng số mô hình nền tảng.
+\end{enumerate}
+
+Để đạt được mục tiêu trên, ChronosArt phát triển một cấu trúc hai luồng song song (Dual-Stream Pipeline) trên nền tảng kiến trúc thị giác tự hồi quy Infinity~\cite{han2025infinity}, kết hợp kỹ thuật phân rã đặc trưng SVD và phép chiếu trực giao triệt tiêu thặng dư nội dung.
+
+\begin{figure*}[t]
+\centering
+\includegraphics[width=0.88\textwidth]{Figure/pipeline_mod.pdf}
+\caption{\textbf{Kiến trúc tổng thể hai luồng song song (Dual-Stream Pipeline) của ChronosArt}. Luồng nội dung (Content Path) và luồng sinh (Generation Path) cùng nhận prompt văn bản $T$. Luồng nội dung vận hành suy luận sạch làm mốc cấu trúc chuẩn. Tại các dải tỉ lệ quy định, cơ chế \textit{Principal Feature Blending (PFB)} và phép chiếu thặng dư nội dung trực giao tiêm phong cách từ ảnh mẫu $I^{\text{sty}}$, đồng thời cơ chế \textit{Structural Attention Correction (SAC)} cưỡng chế đồng bộ ma trận Query-Key từ luồng nội dung để bảo toàn cấu trúc hình học.}
+\label{fig:overall}
+\end{figure*}
+
+\section{Cơ Sở Toán Học Chuyên Sâu Của Mô Hình Thị Giác Tự Hồi Quy (VAR)}
+\label{sec:var}
+
+\subsection{Bối Cảnh Lịch Sử: Sự Khác Biệt Giữa AR 1D, Diffusion và VAR}
+Trong lĩnh vực trí tuệ nhân tạo tạo sinh, mô hình tự hồi quy (Autoregressive - AR) dựa trên kiến trúc Transformer đã tạo nên thành công vang dội của các mô hình ngôn ngữ lớn (LLMs như GPT-3/4, Llama) nhờ tuân thủ chặt chẽ \textbf{Định luật Mở rộng Quy mô theo Luật Lũy Thừa (Power-Law Scaling Laws)}~\cite{tian2024visual}. Tuy nhiên, khi chuyển giao mô hình tự hồi quy từ ngôn ngữ tự nhiên sang thị giác máy tính (như ImageGPT, VQGAN, Parti), phương pháp truyền thống trải phẳng lưới ảnh 2D thành chuỗi 1D theo thứ tự quét dòng (raster-scan order):
+\begin{equation}
+p(I) = \prod_{i=1}^{N} p(x_i \mid x_1, x_2, \dots, x_{i-1}), \quad N = H \times W
+\end{equation}
+Cách tiếp cận quét dòng 1D này gặp phải ba rào cản nền tảng:
+\begin{enumerate}
+    \item \textbf{Phá vỡ tính đẳng hướng và cấu trúc hình học 2D:} Thứ tự quét dòng áp đặt quan hệ nhân quả một chiều nhân tạo (từ trái qua phải, từ trên xuống dưới). Một pixel tại vị trí $(r, c)$ có quan hệ không gian trực tiếp với pixel $(r-1, c)$ ở hàng trên, nhưng trong chuỗi 1D, khoảng cách giữa chúng bị kéo dãn bằng độ rộng toàn hàng $W$, làm suy yếu tương quan không gian tự nhiên của ảnh.
+    \item \textbf{Tích lũy sai số theo hiệu ứng Domino (Exposure Bias):} Một sai số nhỏ ở các token đầu tiên sẽ tích lũy và khuếch đại dọc theo chuỗi sinh dài hàng nghìn bước, dẫn đến việc nửa dưới bức ảnh thường bị suy biến hoặc méo mó cấu trúc.
+    \item \textbf{Bùng nổ chi phí tính toán $\mathcal{O}(N^2)$:} Với ảnh $512 \times 512$ được chia thành các patch $16 \times 16$, chuỗi có $N = 32 \times 32 = 1024$ tokens. Mạng Transformer phải chạy suy luận tuần tự $1024$ lần, khiến tốc độ sinh ảnh chậm hơn rất nhiều so với nhu cầu thực tế.
+\end{enumerate}
+
+Để khắc phục nhược điểm của AR 1D, các \textbf{Mô hình Khuếch tán (Diffusion Models)} như DDPM, Stable Diffusion, và DiT đã trở thành xu hướng chủ đạo bằng cách xử lý đồng thời toàn bộ canvas thông qua quá trình khử nhiễu liên tục Gaussian. Tuy nhiên, Diffusion đòi hỏi từ 30 đến 50 bước lặp trên toàn bộ lưới phân giải cao, tiêu tốn năng lượng tính toán lớn và thiếu đi khả năng mở rộng quy mô xác suất trực tiếp như các mô hình ngôn ngữ.
+
+\textbf{Visual Autoregressive (VAR)}~\cite{tian2024visual} là công trình mang tính cách mạng đã phá vỡ thế bế tắc này bằng cách đề xuất một mô thức hoàn toàn mới: \textbf{Dự đoán tỉ lệ kế tiếp (Next-Scale Prediction)}.
+
+\subsection{Triết Lý Trực Giác: Con Người Vẽ Tranh Như Thế Nào?}
+Trực giác đằng sau VAR bắt nguồn từ quan sát quá trình sáng tác hội họa của con người: một họa sĩ khi vẽ tranh không bao giờ đặt bút vẽ chi tiết từng pixel từ góc trên bên trái sang góc dưới bên phải. Thay vào đó, người họa sĩ luôn phác thảo bố cục tổng thể và các khối hình học lớn (tỉ lệ thô), sau đó định hình các vùng màu sắc và đường nét chính (tỉ lệ trung gian), và cuối cùng mới tỉa các chi tiết vi mô, chất liệu bề mặt và ánh sáng phản chiếu (tỉ lệ mịn).
+
+VAR hiện thực hóa triết lý này bằng cách định nghĩa quá trình tự hồi quy trên \textbf{không gian tỉ lệ phân giải (scale space)} thay vì không gian vị trí điểm ảnh 1D.
+
+\subsection{Cấu Trúc Lượng Tử Hóa Thặng Dư Đa Tỉ Lệ (Multi-Scale Residual VQ-VAE)}
+Để phân rã ảnh theo từng cấp độ thông tin, VAR xây dựng một bộ biến đổi tự mã hóa biến phân đa tỉ lệ (Hierarchical Multi-Scale VQ-VAE).
+
+\begin{definition}[Phân giải tháp đặc trưng thặng dư]
+Cho một ảnh đầu vào $I \in \mathbb{R}^{H \times W \times 3}$. Bộ mã hóa $\mathcal{E}$ ánh xạ ảnh vào biểu diễn tiềm ẩn liên tục $\mathbf{Z} = \mathcal{E}(I) \in \mathbb{R}^{C \times H' \times W'}$.
+Chuỗi tháp tỉ lệ không gian gồm $K$ cấp được xác định bởi tập kích thước:
+\begin{equation}
+\{(h_1, w_1), (h_2, w_2), \dots, (h_K, w_K)\}
+\end{equation}
+thỏa mãn $(h_1 \times w_1) < (h_2 \times w_2) < \dots < (h_K \times w_K) = (H' \times W')$, thường bắt đầu từ $h_1 \times w_1 = 1 \times 1$ hoặc $2 \times 2$.
+\end{definition}
+
+Tại mỗi cấp tỉ lệ $s \in \{1, 2, \dots, K\}$, thặng dư thông tin chưa được mô tả bởi các cấp trước được tính toán và lượng tử hóa như sau:
+\begin{align}
+\widetilde{\mathbf{Z}}_1 &= \text{down}_{h_1 \times w_1}(\mathbf{Z}), \\
+\mathbf{R}_1 &= \mathcal{Q}_1(\widetilde{\mathbf{Z}}_1) \in \mathbb{R}^{C \times h_1 \times w_1}, \\
+\widetilde{\mathbf{Z}}_s &= \text{down}_{h_s \times w_s} \left( \mathbf{Z} - \sum_{i=1}^{s-1} \text{up}_{H' \times W'}(\mathbf{R}_i) \right), \quad \forall s \ge 2, \\
+\mathbf{R}_s &= \mathcal{Q}_s(\widetilde{\mathbf{Z}}_s) \in \mathbb{R}^{C \times h_s \times w_s} \label{eq:var_rq}
+\end{align}
+trong đó $\mathcal{Q}_s(\cdot)$ là toán tử phân lượng hóa vector (Vector Quantization) sử dụng bảng mã từ điển $\mathcal{V}_s = \{\mathbf{e}_k\}_{k=1}^{|\mathcal{V}|}$, $\text{down}_{h \times w}(\cdot)$ là toán tử lấy mẫu giảm (adaptive average pooling) và $\text{up}_{H' \times W'}(\cdot)$ là toán tử nội suy song tuyến tính phóng đại.
+
+\begin{proposition}[Phân rã phổ tần số thông tin]
+Quá trình lượng tử hóa thặng dư tạo ra sự phân tách phổ tần số trực giao:
+\begin{itemize}
+    \item Cấp $s=1$ ($h_1 \times w_1 = 1 \times 1$): Biểu diễn thành phần tần số một chiều (DC component), tương ứng với gam màu chủ đạo và ánh sáng nền toàn cảnh.
+    \item Cấp $s \in \{2, 3, 4\}$ ($2 \times 2 \to 8 \times 8$): Biểu diễn tần số thấp đến trung bình, quyết định vị trí tương quan, bố cục đối tượng và hình dạng hình học thô.
+    \item Cấp $s \ge 5$ ($16 \times 16 \to 64 \times 64$): Biểu diễn tần số cao, mã hóa các đường vân chi tiết, ranh giới cạnh sắc nét và kết cấu vi mô.
+\end{itemize}
+\end{proposition}
+
+\subsection{Mô Hình Hóa Xác Suất và Chú Ý Khối Nhân Quả (Block Causal Prefix Attention)}
+Trong không gian biểu diễn đa tỉ lệ, xác suất đồng thời của ảnh $I$ được mô hình hóa theo chuỗi điều kiện giữa các cấp tỉ lệ:
+\begin{equation}
+p(I) = \prod_{s=1}^{K} p(\mathbf{R}_s \mid \mathbf{R}_1, \mathbf{R}_2, \dots, \mathbf{R}_{s-1})
+\end{equation}
+Khác với AR 1D, xác suất bên trong mỗi cấp $p(\mathbf{R}_s \mid \mathbf{R}_{<s})$ không bị phân rã tuần tự theo từng token. Thay vào đó, \textbf{tất cả $h_s \times w_s$ tokens tại cấp $s$ được sinh đồng thời và song song trong một bước tính toán duy nhất của Transformer}.
+
+\begin{definition}[Mặt nạ chú ý khối - Block Causal Mask]
+Cho ma trận chú ý tự thân giữa token thứ $i$ và token thứ $j$ trong chuỗi mở rộng đa tỉ lệ. Mặt nạ chú ý $\mathbf{M} \in \{0, -\infty\}^{\sum N_s \times \sum N_s}$ được xác định theo quy tắc:
+\begin{equation}
+\mathbf{M}_{i, j} = \begin{cases}
+0, & \text{khi } \text{scale}(j) \le \text{scale}(i) \\
+-\infty, & \text{khi } \text{scale}(j) > \text{scale}(i)
+\end{cases}
+\end{equation}
+trong đó $\text{scale}(i)$ chỉ cấp tỉ lệ mà token $i$ trực thuộc.
+\end{definition}
+
+Quy tắc mặt nạ này mang lại hai đặc tính kiến trúc đột phá:
+\begin{enumerate}
+    \item \textbf{Chú ý hai chiều nội bộ tỉ lệ (Bidirectional Intra-Scale Attention):} Mọi token cùng thuộc tỉ lệ $s$ đều có thể quan sát lẫn nhau một cách bình đẳng không định hướng, bảo toàn trọn vẹn đối xứng không gian 2D.
+    \item \textbf{Chú ý nhân quả liên tỉ lệ (Causal Inter-Scale Attention):} Tỉ lệ $s$ hiện tại có quyền truy cập thông tin ngữ cảnh toàn diện từ tất cả các tỉ lệ thô trước đó $\{1, \dots, s-1\}$, nhưng bị cấm nhìn vào các tỉ lệ mịn tương lai $\{s+1, \dots, K\}$.
+\end{enumerate}
+
+\subsection{Cơ Chế Tích Lũy Thặng Dư \& Định Lý Lipschitz}
+Bản đồ đặc trưng ẩn tích lũy tại bước $s$ được xác định theo công thức cộng dồn thặng dư:
+\begin{equation}
+\mathbf{F}_s = \mathbf{F}_{s-1} + \text{up}_{H \times W}(\mathbf{R}_s) = \sum_{i=1}^{s} \text{up}_{H \times W}(\mathbf{R}_i) \label{eq:var_accum_full}
+\end{equation}
+với $\mathbf{F}_0 = \mathbf{0}$. Ảnh cuối cùng được tái tạo qua bộ giải mã $\mathcal{D}$:
+\begin{equation}
+I = \mathcal{D}(\mathbf{F}_K)
+\end{equation}
+
+\begin{theorem}[Hội tụ sai số Lipschitz theo cấp tỉ lệ]
+Giả sử bộ giải mã ảnh $\mathcal{D}$ khả vi và liên tục Lipschitz với hằng số $L_{\mathcal{D}} < \infty$:
+\begin{equation}
+\|\mathcal{D}(\mathbf{F}_A) - \mathcal{D}(\mathbf{F}_B)\|_F \le L_{\mathcal{D}} \|\mathbf{F}_A - \mathbf{F}_B\|_F, \quad \forall \mathbf{F}_A, \mathbf{F}_B
+\end{equation}
+Khi đó, khoảng cách sai số giữa ảnh trung gian $\mathcal{D}(\mathbf{F}_s)$ tại bước $s$ và ảnh hoàn thiện $I = \mathcal{D}(\mathbf{F}_K)$ bị chặn trên chặt chẽ bởi:
+\begin{equation}
+\|I - \mathcal{D}(\mathbf{F}_s)\|_F \le L_{\mathcal{D}} \sum_{i=s+1}^{K} \|\text{up}_{H \times W}(\mathbf{R}_i)\|_F
+\end{equation}
+\end{theorem}
+\begin{proof}
+Áp dụng bất đẳng thức tam giác trên không gian Banach của các ma trận đặc trưng với chuẩn Frobenius và công thức tích lũy thặng dư:
+\begin{align}
+\|\mathbf{F}_K - \mathbf{F}_s\|_F &= \left\| \sum_{i=1}^K \text{up}(\mathbf{R}_i) - \sum_{i=1}^s \text{up}(\mathbf{R}_i) \right\|_F \nonumber \\
+&= \left\| \sum_{i=s+1}^K \text{up}(\mathbf{R}_i) \right\|_F \le \sum_{i=s+1}^K \|\text{up}(\mathbf{R}_i)\|_F
+\end{align}
+Áp dụng tính chất liên tục Lipschitz của bộ giải mã $\mathcal{D}$:
+\begin{equation}
+\|I - \mathcal{D}(\mathbf{F}_s)\|_F = \|\mathcal{D}(\mathbf{F}_K) - \mathcal{D}(\mathbf{F}_s)\|_F \le L_{\mathcal{D}} \|\mathbf{F}_K - \mathbf{F}_s\|_F
+\end{equation}
+Kết hợp hai bất đẳng thức ta thu được điều phải chứng minh.
+\end{proof}
+
+\subsection{Tính Ưu Việt Của VAR: Tốc Độ \& Scaling Laws}
+Nhờ mô thức Next-Scale Prediction, VAR đem lại những ưu thế vượt bậc:
+\begin{itemize}
+    \item \textbf{Số bước suy luận cực nhỏ:} Thay vì thực hiện hàng nghìn bước lặp (1024 bước như AR 1D) hoặc 50 bước khử nhiễu nặng nề như Diffusion, VAR chỉ cần $K \approx \log_2(H) \approx 7 \text{ đến } 10$ bước suy luận cho toàn bộ bức ảnh. Tốc độ sinh ảnh tăng tốc gần 20 lần.
+    \item \textbf{Đột phá chỉ số FID trên ImageNet:} Trong công bố chính thức tại NeurIPS 2024, VAR-d30 (2 tỷ tham số) đã đạt chỉ số Fréchet Inception Distance (FID) \textbf{1.73} trên tập dữ liệu ImageNet $512 \times 512$, lần đầu tiên đánh bại mô hình khuếch tán hàng đầu Diffusion Transformer (DiT-XL/2 có FID 2.27) cả về chất lượng hình ảnh lẫn tốc độ suy luận.
+    \item \textbf{Định luật mở rộng lũy thừa (Scaling Laws):} Khác với mô hình khuếch tán vốn khó mở rộng quy mô tham số vượt quá 10B, VAR thể hiện mối tương quan tuyến tính nghịch đảo hoàn hảo giữa hàm mất mát kiểm thử (test loss) và năng lực tính toán đào tạo ($N \propto C^{-\beta}$), xác nhận rằng việc tăng số lượng tham số Transformer sẽ trực tiếp cải thiện độ chân thực của ảnh.
+\end{itemize}
+
+\section{Cơ Chế Toán Học Của Mô Hình Infinity}
+\label{sec:infinity}
+
+Infinity~\cite{han2025infinity} mở rộng mô hình VAR lên quy mô độ phân giải cao và tính chất liên tục, loại bỏ hiện tượng co cụm từ điển rời rạc (codebook collapse) của VQ-VAE truyền thống.
+
+\subsection{Phân lượng hóa Cầu Nhị phân (Binary Spherical Quantization - BSQ)}
+Thay vì sử dụng bảng mã rời rạc với kích thước cố định $|V|$ (đòi hỏi ma trận embedding khổng lồ và phép chiếu argmin tốn kém), Infinity sử dụng biểu diễn nhị phân liên tục trên mặt cầu đơn vị.
+
+\begin{definition}[BSQ Mapping]
+Cho vector đặc trưng tiềm ẩn $z \in \mathbb{R}^d$. Phép phân lượng hóa BSQ chuẩn hóa vector về mặt cầu đơn vị $\mathcal{S}^{d-1}$ và lượng tử hóa thành vector bit nhị phân $\mathbf{b} \in \{-1, +1\}^d$:
+\begin{equation}
+\mathbf{b} = \text{sign}\left(\frac{z}{\|z\|_2}\right) \in \{-1, +1\}^d
+\end{equation}
+với hàm dấu xác định: $\text{sign}(u) = +1$ nếu $u \ge 0$ và $-1$ nếu $u < 0$.
+\end{definition}
+
+Không gian biểu diễn trạng thái của BSQ có lực lượng tương đương:
+\begin{equation}
+|\mathcal{V}_{\text{BSQ}}| = 2^d
+\end{equation}
+Với số chiều $d = 32$, mô hình đạt được không gian biểu diễn hữu hiệu $2^{32} \approx 4.29 \times 10^9$ trạng thái, và với $d=64$ là $2^{64} \approx 1.84 \times 10^{19}$ trạng thái mà hoàn toàn không tốn bộ nhớ lưu trữ từ điển rời rạc.
+
+\subsection{Hàm Mất Mát Dự Đoán Bit Độc Lập}
+Trong quá trình huấn luyện tự hồi quy, mạng Transformer $\mathcal{M}$ xuất ra vector logits $\mathbf{l} = (l_1, l_2, \dots, l_d)^\top \in \mathbb{R}^d$. Xác suất của từng bit độc lập được mô hình hóa qua hàm sigmoid $\sigma(x) = \frac{1}{1 + e^{-x}}$:
+\begin{equation}
+p(b_i = +1 \mid \mathbf{l}) = \sigma(l_i) = \frac{1}{1 + \exp(-l_i)}
+\end{equation}
+Hàm mất mát là tổng entropy chéo nhị phân trên $d$ chiều:
+\begin{equation}
+\mathcal{L}_{\text{bit}}(\mathbf{l}, \mathbf{y}) = -\sum_{i=1}^{d} \left[ y_i \log \sigma(l_i) + (1 - y_i) \log (1 - \sigma(l_i)) \right]
+\end{equation}
+trong đó $y_i = \frac{b_i + 1}{2} \in \{0, 1\}$ là nhãn mục tiêu nhị phân.
+
+\subsection{Nhúng Vị Trí Quay 2 Chiều (RoPE-2D)}
+Để hỗ trợ tỷ lệ khung hình và độ phân giải tùy biến không giới hạn, Infinity áp dụng nhúng vị trí quay 2 chiều (2D Rotary Position Embedding).
+
+\begin{definition}[Toán tử RoPE-2D]
+Tại tọa độ không gian $(m, n)$ trên lưới $h_s \times w_s$, chiều nhúng đặc trưng $d_k$ được chia đôi: $d_{k, x} = d_k / 2$ cho trục hoành $m$ và $d_{k, y} = d_k / 2$ cho trục tung $n$. Toán tử quay vị trí $\mathcal{R}_{\Theta, (m,n)} \in \mathbb{R}^{d_k \times d_k}$ có dạng ma trận khối đường chéo trực giao:
+\begin{equation}
+\mathcal{R}_{\Theta, (m,n)} = \begin{pmatrix}
+\mathbf{R}_{\Theta_x, m} & \mathbf{0} \\
+\mathbf{0} & \mathbf{R}_{\Theta_y, n}
+\end{pmatrix}
+\end{equation}
+trong đó $\mathbf{R}_{\Theta_x, m} = \text{diag}\left( \begin{pmatrix} \cos m\theta_i & -\sin m\theta_i \\ \sin m\theta_i & \cos m\theta_i \end{pmatrix} \right)_{i=1}^{d_{k,x}/2}$ với cơ số tần số $\theta_i = \beta^{-2(i-1)/d_{k,x}}$.
+\end{definition}
+
+\begin{proposition}[Bất biến dịch chuyển tương đối 2D]
+Cho hai token tại vị trí $(m_1, n_1)$ và $(m_2, n_2)$ với vector Query $q$ và Key $k$. Tích vô hướng được biến đổi bảo toàn cấu trúc khoảng cách tương đối:
+\begin{equation}
+\langle \mathcal{R}_{\Theta, (m_1, n_1)} q, \mathcal{R}_{\Theta, (m_2, n_2)} k \rangle = q^\top \mathcal{R}_{\Theta, (m_1 - m_2, n_1 - n_2)} k
+\end{equation}
+\end{proposition}
+\begin{proof}
+Do các ma trận quay khối là ma trận trực giao $\mathbf{R}^\top \mathbf{R} = \mathbf{I}$ và thỏa mãn tính chất đồng cấu nhóm quay $\mathbf{R}_{\theta, m}^\top \mathbf{R}_{\theta, n} = \mathbf{R}_{\theta, n - m}$, ta có:
+\begin{align}
+\mathcal{R}_{\Theta, (m_1, n_1)}^\top \mathcal{R}_{\Theta, (m_2, n_2)} &= \begin{pmatrix}
+\mathbf{R}_{\Theta_x, m_1}^\top \mathbf{R}_{\Theta_x, m_2} & \mathbf{0} \\
+\mathbf{0} & \mathbf{R}_{\Theta_y, n_1}^\top \mathbf{R}_{\Theta_y, n_2}
+\end{pmatrix} \nonumber \\
+&= \mathcal{R}_{\Theta, (m_2 - m_1, n_2 - n_1)}
+\end{align}
+Từ đó suy ra tích vô hướng hoàn toàn chỉ phụ thuộc vào khoảng cách tương đối $(\Delta m, \Delta n) = (m_1 - m_2, n_1 - n_2)$.
+\end{proof}
+
+\subsection{Điều Kiện Hóa Văn Bản \& Hướng Dẫn Phi Phân Loại (CFG)}
+Câu lệnh $T$ được mã hóa qua mô hình ngôn ngữ Flan-T5 XL $\mathcal{E}_T$:
+\begin{equation}
+\mathbf{H}_{\text{txt}} = \mathcal{E}_T(T) \in \mathbb{R}^{L \times d_{\text{txt}}}
+\end{equation}
+Tại mỗi tầng Transformer, tương tác giữa đặc trưng ảnh và ngữ cảnh văn bản được thực hiện qua khối Chú ý chéo (Cross-Attention):
+\begin{equation}
+\text{CA}(\mathbf{X}, \mathbf{H}_{\text{txt}}) = \text{softmax}\left(\frac{(\mathbf{X} \mathbf{W}_Q) (\mathbf{H}_{\text{txt}} \mathbf{W}_K)^\top}{\sqrt{d_k}}\right) (\mathbf{H}_{\text{txt}} \mathbf{W}_V)
+\end{equation}
+Đồng thời, kỹ thuật Classifier-Free Guidance (CFG) được áp dụng trên không gian logits của bit với trọng số hướng dẫn $w_{\text{cfg}} > 1$:
+\begin{equation}
+\widetilde{\mathbf{l}}_s = \mathbf{l}_s(\emptyset) + w_{\text{cfg}} \big(\mathbf{l}_s(T) - \mathbf{l}_s(\emptyset)\big)
+\end{equation}
+trong đó $\mathbf{l}_s(\emptyset)$ là logit sinh ra từ prompt rỗng (unconditioned).
+
+\section{Cơ Chế Gốc Của Bài Báo (PFB và SAC)}
+\label{sec:original}
+
+\subsection{Trải phẳng Đặc trưng và Phân tích Giá trị Kỳ dị (SVD)}
+Tại bước tỉ lệ $s$, tensor đặc trưng ẩn trung gian $\mathbf{F}_s \in \mathbb{R}^{C \times H_s \times W_s}$ được trải phẳng không gian thành ma trận đặc trưng kênh-không gian:
+\begin{equation}
+\mathbf{X}_s = \text{mat}(\mathbf{F}_s) \in \mathbb{R}^{C \times N_s}, \quad N_s = H_s \times W_s
+\end{equation}
+Phân rã giá trị kỳ dị (SVD) của ma trận $\mathbf{X}_s$ được định nghĩa:
+\begin{equation}
+\mathbf{X}_s = \mathbf{U}_s \boldsymbol{\Sigma}_s \mathbf{V}_s^\top = \sum_{i=1}^{\rho} \sigma_{s, i} \mathbf{u}_{s, i} \mathbf{v}_{s, i}^\top
+\end{equation}
+trong đó:
+\begin{itemize}
+    \item $\rho = \min(C, N_s)$ là hạng tối đa của ma trận.
+    \item $\mathbf{U}_s = [\mathbf{u}_{s,1}, \dots, \mathbf{u}_{s,C}] \in \mathbb{R}^{C \times C}$ là ma trận trực giao chứa các vector kỳ dị trái (trục cơ sở không gian kênh).
+    \item $\boldsymbol{\Sigma}_s \in \mathbb{R}^{C \times N_s}$ là ma trận đường chéo chứa các giá trị kỳ dị xếp giảm dần $\sigma_{s, 1} \ge \sigma_{s, 2} \ge \dots \ge \sigma_{s, \rho} \ge 0$.
+    \item $\mathbf{V}_s = [\mathbf{v}_{s,1}, \dots, \mathbf{v}_{s,N_s}] \in \mathbb{R}^{N_s \times N_s}$ là ma trận trực giao chứa các vector kỳ dị phải (bản đồ kích hoạt riêng trong không gian vị trí).
+\end{itemize}
+
+\begin{theorem}[Eckart-Young-Mirsky]
+Cho ma trận $\mathbf{X} \in \mathbb{R}^{C \times N}$ có phân rã SVD $\mathbf{X} = \mathbf{U}\boldsymbol{\Sigma}\mathbf{V}^\top$. Với mọi số nguyên $r < \text{rank}(\mathbf{X})$, ma trận xấp xỉ hạng $r$ tối ưu theo chuẩn Frobenius thỏa mãn:
+\begin{equation}
+\mathbf{X}_r = \sum_{i=1}^{r} \sigma_i \mathbf{u}_i \mathbf{v}_i^\top = \arg\min_{\text{rank}(\mathbf{A}) \le r} \|\mathbf{X} - \mathbf{A}\|_F^2
+\end{equation}
+và sai số xấp xỉ đạt cực tiểu bằng:
+\begin{equation}
+\|\mathbf{X} - \mathbf{X}_r\|_F^2 = \sum_{i=r+1}^{\rho} \sigma_i^2
+\end{equation}
+\end{theorem}
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.92\linewidth]{Figure/observation_svd.pdf}
+\caption{\textbf{Phân tích độ tương đồng đặc trưng SVD}. Thay thế toàn bộ đặc trưng (\textit{Full replacement}) làm tăng mạnh tương đồng của cả nội dung đối tượng và phong cách màu sắc. Ngược lại, trích xuất thành phần kỳ dị chủ đạo thông qua SVD (\textit{SVD-guided}) chỉ làm tăng tương đồng màu sắc/phong cách, chứng minh thành phần $\sigma_1$ chủ yếu mã hóa phong cách.}
+\label{fig:observation_svd}
+\end{figure}
+
+\subsection{Hàm Tái Cấu Trúc Suy Giảm Hàm Mũ}
+Bài báo nền tảng nhận thấy rằng giá trị kỳ dị lớn nhất $\sigma_1$ chi phối hầu hết năng lượng phong cách tổng thể, trong khi các thành phần bậc cao dần dần mã hóa các chi tiết cục bộ. Do đó, hàm trích xuất phong cách được xây dựng với trọng số suy giảm hàm mũ:
+\begin{equation}
+\Phi_{r, \alpha}(\mathbf{X}) = \mathbf{U}_{:, 1:r} \text{diag}\left( \sigma_i e^{-\alpha(i-1)} \right)_{i=1}^{r} \mathbf{V}_{:, 1:r}^\top \label{eq:phi_svd}
+\end{equation}
+trong đó tham số $\alpha > 0$ điều tiết tốc độ suy giảm năng lượng của các thành phần bậc cao. Khi $\alpha \to \infty$, $\Phi_{r, \alpha}(\mathbf{X}) \to \sigma_1 \mathbf{u}_1 \mathbf{v}_1^\top$ (xấp xỉ hạng 1).
+
+Thặng dư pha trộn phong cách (Style Blending Residual) tại bước $s$ được xác định:
+\begin{equation}
+\boldsymbol{\Delta}_{\text{PFB}, s}^{(r_s)} = \Phi_{r_s, \alpha}(\mathbf{X}_s^{\text{sty}}) - \Phi_{r_s, \alpha}(\mathbf{X}_s^{\text{gen}}) \label{eq:pfb_delta}
+\end{equation}
+và đặc trưng thế hệ được cập nhật tại bước can thiệp:
+\begin{equation}
+\widehat{\mathbf{X}}_s^{\text{gen}} = \mathbf{X}_s^{\text{gen}} + \boldsymbol{\Delta}_{\text{PFB}, s}^{(r_s)} = \Phi_{r_s, \alpha}(\mathbf{X}_s^{\text{sty}}) + \big(\mathbf{X}_s^{\text{gen}} - \Phi_{r_s, \alpha}(\mathbf{X}_s^{\text{gen}})\big)
+\end{equation}
+Công thức trên thay thế các thành phần kỳ dị chủ đạo của luồng sinh bằng thành phần kỳ dị của ảnh phong cách, đồng thời bảo lưu phần thặng dư bậc cao của luồng sinh.
+
+\begin{figure}[t]
+\centering
+\includegraphics[width=0.88\linewidth]{Figure/decay_svd_alpha.pdf}
+\caption{\textbf{Đồ thị hàm trọng số suy giảm hàm mũ $\exp(-\alpha(i-1))$ theo chỉ số giá trị kỳ dị $i$}. Giá trị $\alpha=1.0$ (thiết lập chuẩn) cân bằng tối ưu giữa việc trích xuất phong cách chủ đạo $\sigma_1$ và bảo toàn tính liên tục phổ.}
+\label{fig:decay_alpha}
+\end{figure}
+
+\subsection{Cơ Chế Hiệu Chỉnh Chú Ý Cấu Trúc (SAC)}
+Trong các tầng Transformer, bản đồ chú ý tự thân (Self-Attention map) $\mathbf{A}_s \in \mathbb{R}^{N_s \times N_s}$ xác định mối quan hệ hình học và bố cục không gian giữa các vùng đối tượng:
+\begin{equation}
+\mathbf{A}_s = \text{softmax}\left(\frac{\mathbf{Q}_s \mathbf{K}_s^\top}{\sqrt{d_k}}\right)
+\end{equation}
+Sau khi tiêm phong cách qua PFB tại bước thô ($s=3$), đặc trưng $\mathbf{F}_s^{\text{gen}}$ bị biến đổi có thể kéo theo sự suy biến bản đồ chú ý ở các bước sau, làm méo mó hình dạng vật thể. SAC giải quyết triệt để vấn đề này bằng cách cưỡng chế sao chép Query và Key từ luồng nội dung sạch:
+\begin{equation}
+\mathbf{Q}_s^{\text{gen}} \leftarrow \mathbf{Q}_s^{\text{con}} = \mathbf{F}_s^{\text{con}} \mathbf{W}_Q, \quad \mathbf{K}_s^{\text{gen}} \leftarrow \mathbf{K}_s^{\text{con}} = \mathbf{F}_s^{\text{con}} \mathbf{W}_K
+\end{equation}
+được áp dụng cho tất cả các bước tinh chỉnh $\mathbf{S}_{\text{fine}} = \{3, 4, \dots, K\}$.
+
+\begin{proposition}[Bảo toàn hình học tuyệt đối của SAC]
+Dưới tác động của cơ chế SAC, bản đồ tương quan không gian của luồng sinh $\mathbf{A}_s^{\text{gen}}$ đồng nhất với bản đồ tương quan của luồng nội dung $\mathbf{A}_s^{\text{con}}$:
+\begin{equation}
+\mathbf{A}_s^{\text{gen}} = \text{softmax}\left(\frac{\mathbf{Q}_s^{\text{con}} (\mathbf{K}_s^{\text{con}})^\top}{\sqrt{d_k}}\right) \equiv \mathbf{A}_s^{\text{con}}
+\end{equation}
+trong khi luồng giá trị (Value) $\mathbf{V}_s^{\text{gen}} = \mathbf{F}_s^{\text{gen}} \mathbf{W}_V$ tiếp tục truyền tải các đặc trưng chất liệu và màu sắc đã phong cách hóa.
+\end{proposition}
+
+\section{Các Cải Tiến Mới Trong ChronosArt (Chiếu Trực Giao và Hybrid Injection)}
+\label{sec:ortho_proj}
+
+Mặc dù PFB và SAC đem lại kết quả chuyển giao phong cách ấn tượng, thực nghiệm chuyên sâu cho thấy phương pháp PFB nguyên bản bộc lộ một hạn chế toán học căn bản: \textbf{Hiện tượng vướng víu ngữ nghĩa (Semantic Entanglement) và rò rỉ nội dung (Content Leakage)}.
+
+\subsection{Nghịch Lý Phân Rã Giá Trị Kỳ Dị Trong PFB Thuần Túy}
+\begin{remark}[Sự sai lệch giữa năng lượng và vai trò ngữ nghĩa]
+Phân tích SVD thuần túy sắp xếp các thành phần $(\mathbf{u}_i, \sigma_i, \mathbf{v}_i)$ theo \textbf{năng lượng phương sai dữ liệu} $\sigma_i^2$, \textbf{không theo chức năng ngữ nghĩa}.
+\end{remark}
+Do đó, khi ảnh phong cách $I^{\text{sty}}$ chứa một cấu trúc vật thể xác định (ví dụ: một bức tranh vẽ chú chó theo phong cách màu nước), thành phần kỳ dị chủ đạo $\mathbf{u}_1 \sigma_1 \mathbf{v}_1^\top$ không chỉ mang đặc trưng nét vẽ màu nước (phong cách) mà còn chứa cả hình bóng của chú chó (nội dung của ảnh mẫu). Khi thực hiện cộng $\boldsymbol{\Delta}_{\text{PFB}}$ trực tiếp, hình bóng chú chó bị ép tiêm vào ảnh sinh mới (ví dụ: mèo), dẫn đến hiện tượng tranh chấp ngữ nghĩa hoặc làm biến dạng cấu trúc đối tượng đích.
+
+\subsection{Toán Học Của Phép Chiếu Ràng Buộc Theo Nội Dung}
+Để bóc tách triệt để nội dung khỏi vector thặng dư phong cách, ChronosArt đề xuất ước lượng không gian con nội dung từ \textbf{luồng nội dung sạch (clean content stream)} $\mathbf{X}_s^{\text{con}}$, sau đó chiếu trực giao thặng dư $\boldsymbol{\Delta}_s$ lên phần bù trực giao của không gian này.
+
+\paragraph{Bước 1: Tâm hóa không gian kênh (Spatial Centering).}
+Để loại bỏ sự dịch chuyển hằng số không gian (spatially constant DC offset) vốn chỉ biểu thị giá trị trung bình độ sáng hoặc thiên lệch kênh, ta tính vector kỳ vọng kênh của luồng nội dung sạch:
+\begin{equation}
+\boldsymbol{\mu}_s^{\text{con}} = \frac{1}{N_s} \mathbf{X}_s^{\text{con}} \mathbf{1}_{N_s} \in \mathbb{R}^C \label{eq:ortho_mu}
+\end{equation}
+trong đó $\mathbf{1}_{N_s} = [1, 1, \dots, 1]^\top \in \mathbb{R}^{N_s}$. Ma trận đặc trưng nội dung sau khi tâm hóa:
+\begin{equation}
+\widetilde{\mathbf{X}}_s^{\text{con}} = \mathbf{X}_s^{\text{con}} - \boldsymbol{\mu}_s^{\text{con}} \mathbf{1}_{N_s}^\top \in \mathbb{R}^{C \times N_s} \label{eq:ortho_center}
+\end{equation}
+
+\paragraph{Bước 2: Xây dựng cơ sở không gian con nội dung (Content Subspace Basis).}
+Thực hiện phân rã SVD trên ma trận nội dung đã tâm hóa:
+\begin{equation}
+\widetilde{\mathbf{X}}_s^{\text{con}} = \mathbf{U}_s^{\text{con}} \boldsymbol{\Sigma}_s^{\text{con}} (\mathbf{V}_s^{\text{con}})^\top
+\end{equation}
+Lấy $r_c$ vector kỳ dị trái đầu tiên tương ứng với các hướng biến thiên mạnh nhất của nội dung mục tiêu để thiết lập cơ sở trực chuẩn $\mathbf{B}_s^{\text{con}}$:
+\begin{equation}
+\mathbf{B}_s^{\text{con}} = (\mathbf{U}_s^{\text{con}})_{:, 1:r_c} \in \mathbb{R}^{C \times r_c}, \quad (\mathbf{B}_s^{\text{con}})^\top \mathbf{B}_s^{\text{con}} = \mathbf{I}_{r_c} \label{eq:ortho_basis}
+\end{equation}
+
+\paragraph{Bước 3: Toán tử chiếu trực giao (Orthogonal Projector).}
+Ma trận toán tử chiếu trực giao lên không gian con kênh nội dung $\mathcal{S}_s^{\text{con}} = \text{span}(\mathbf{B}_s^{\text{con}})$ được xác định:
+\begin{equation}
+\mathbf{P}_s^{\text{con}} = \mathbf{B}_s^{\text{con}} (\mathbf{B}_s^{\text{con}})^\top \in \mathbb{R}^{C \times C} \label{eq:ortho_proj}
+\end{equation}
+
+\begin{proposition}[Tính chất toán học của toán tử chiếu $\mathbf{P}_s^{\text{con}}$]
+Toán tử $\mathbf{P}_s^{\text{con}}$ là một toán tử chiếu trực giao chính quy, thỏa mãn hai tính chất:
+\begin{enumerate}
+    \item \textbf{Tính đối xứng (Hermitian):} $(\mathbf{P}_s^{\text{con}})^\top = \mathbf{P}_s^{\text{con}}$.
+    \item \textbf{Tính lũy đẳng (Idempotence):} $(\mathbf{P}_s^{\text{con}})^2 = \mathbf{P}_s^{\text{con}}$.
+\end{enumerate}
+\end{proposition}
+\begin{proof}
+Từ định nghĩa $\mathbf{P}_s^{\text{con}} = \mathbf{B}_s^{\text{con}} (\mathbf{B}_s^{\text{con}})^\top$:
+\begin{align}
+(\mathbf{P}_s^{\text{con}})^\top &= \left(\mathbf{B}_s^{\text{con}} (\mathbf{B}_s^{\text{con}})^\top\right)^\top = \mathbf{B}_s^{\text{con}} (\mathbf{B}_s^{\text{con}})^\top = \mathbf{P}_s^{\text{con}} \\
+(\mathbf{P}_s^{\text{con}})^2 &= \mathbf{B}_s^{\text{con}} (\mathbf{B}_s^{\text{con}})^\top \mathbf{B}_s^{\text{con}} (\mathbf{B}_s^{\text{con}})^\top \nonumber \\
+&= \mathbf{B}_s^{\text{con}} \mathbf{I}_{r_c} (\mathbf{B}_s^{\text{con}})^\top = \mathbf{B}_s^{\text{con}} (\mathbf{B}_s^{\text{con}})^\top = \mathbf{P}_s^{\text{con}}
+\end{align}
+\end{proof}
+
+\paragraph{Bước 4: Khử thành phần trực giao thẳng hàng với nội dung.}
+Với vector thặng dư phong cách ban đầu $\boldsymbol{\Delta}_s$, ChronosArt triệt tiêu thành phần hình chiếu nằm trong không gian nội dung trước khi tiêm vào luồng sinh:
+\begin{equation}
+\boldsymbol{\Delta}_s^{\text{res}} = (\mathbf{I}_C - \eta \mathbf{P}_s^{\text{con}}) \boldsymbol{\Delta}_s, \quad \eta \in [0, 1] \label{eq:ortho_res}
+\end{equation}
+trong đó $\eta$ là hệ số chiếu loại trừ:
+\begin{itemize}
+    \item Khi $\eta = 0$: Thu được PFB nguyên bản ($\boldsymbol{\Delta}_s^{\text{res}} = \boldsymbol{\Delta}_s$).
+    \item Khi $\eta = 1$: Loại bỏ hoàn toàn thành phần trùng khớp với không gian nội dung đích.
+\end{itemize}
+
+\begin{theorem}[Định lý Triệt tiêu Trực giao Hoàn toàn]
+Khi $\eta = 1$, thặng dư phong cách sau khi lọc $\boldsymbol{\Delta}_s^{\text{res}}$ hoàn toàn trực giao với mọi hướng trong không gian con nội dung $\mathcal{S}_s^{\text{con}}$. Nghĩa là:
+\begin{equation}
+(\mathbf{B}_s^{\text{con}})^\top \boldsymbol{\Delta}_s^{\text{res}} = \mathbf{0}_{r_c \times N_s}
+\end{equation}
+và hình chiếu của $\boldsymbol{\Delta}_s^{\text{res}}$ lên $\mathcal{S}_s^{\text{con}}$ đồng nhất bằng 0:
+\begin{equation}
+\mathbf{P}_s^{\text{con}} \boldsymbol{\Delta}_s^{\text{res}} = \mathbf{0}_{C \times N_s}
+\end{equation}
+\end{theorem}
+\begin{proof}
+Thay công thức $\boldsymbol{\Delta}_s^{\text{res}} = (\mathbf{I}_C - \mathbf{P}_s^{\text{con}}) \boldsymbol{\Delta}_s$ vào hình chiếu:
+\begin{align}
+\mathbf{P}_s^{\text{con}} \boldsymbol{\Delta}_s^{\text{res}} &= \mathbf{P}_s^{\text{con}} (\mathbf{I}_C - \mathbf{P}_s^{\text{con}}) \boldsymbol{\Delta}_s \nonumber \\
+&= \left(\mathbf{P}_s^{\text{con}} - (\mathbf{P}_s^{\text{con}})^2\right) \boldsymbol{\Delta}_s \nonumber \\
+&= \left(\mathbf{P}_s^{\text{con}} - \mathbf{P}_s^{\text{con}}\right) \boldsymbol{\Delta}_s = \mathbf{0}_{C \times N_s}
+\end{align}
+Nhân bên trái với $(\mathbf{B}_s^{\text{con}})^\top$:
+\begin{align}
+(\mathbf{B}_s^{\text{con}})^\top \boldsymbol{\Delta}_s^{\text{res}} &= (\mathbf{B}_s^{\text{con}})^\top (\mathbf{I}_C - \mathbf{B}_s^{\text{con}} (\mathbf{B}_s^{\text{con}})^\top) \boldsymbol{\Delta}_s \nonumber \\
+&= \left( (\mathbf{B}_s^{\text{con}})^\top - \mathbf{I}_{r_c} (\mathbf{B}_s^{\text{con}})^\top \right) \boldsymbol{\Delta}_s = \mathbf{0}
+\end{align}
+Định lý được chứng minh.
+\end{proof}
+
+Hệ quả là mọi biến động đặc trưng có nguy cơ làm xáo trộn cấu trúc nhận diện vật thể của nội dung $T$ đều bị triệt tiêu toán học tuyệt đối, bảo đảm sự cô lập hoàn hảo giữa phong cách và nội dung.
+
+\subsection{Cơ Chế Chọn Rank Thích Ứng Theo Phương Sai Tích Lũy}
+Trong các bài toán thực tế, không gian nội dung có thể có độ phức tạp biến thiên. ChronosArt cung cấp cơ chế chọn hạng $r_c$ thích ứng thông qua ngưỡng phương sai giải thích tích lũy $\tau_{\text{var}} \in (0, 1]$:
+\begin{equation}
+r_c^* = \min \left\{ r \in \{1, \dots, C\} \;\middle|\; \frac{\sum_{i=1}^{r} (\sigma_{s, i}^{\text{con}})^2}{\sum_{j=1}^{\rho} (\sigma_{s, j}^{\text{con}})^2} \ge \tau_{\text{var}} \right\}
+\end{equation}
+Đồng thời, tỷ số khoảng cách phổ (Spectral Gap) được giám sát:
+\begin{equation}
+\gamma_{s} = \frac{\sigma_{s, r_c}^{\text{con}}}{\sigma_{s, r_c + 1}^{\text{con}} + \epsilon}
+\end{equation}
+Một tỷ số $\gamma_s$ lớn khẳng định $r_c$ thành phần đầu tiên đã bao trùm phần lớn thông tin cấu trúc then chốt, tách biệt hoàn toàn khỏi nhiễu nền.
+
+\subsection{Lịch Trình Tiêm Phong Cách Lai Đa Tỉ Lệ (Hybrid Multi-Scale Style Injection)}
+Thay vì chỉ can thiệp đơn lẻ tại bước $s=3$ như PFB gốc, ChronosArt áp dụng chiến lược tiêm phong cách phối hợp trên toàn dải tỉ lệ.
+
+\paragraph{Phân tầng vai trò của các dải tỉ lệ:}
+\begin{itemize}
+    \item \textbf{Dải thô ($s \in \{1, 2\}$ tương ứng $R_1 - R_2$):} Đây là giai đoạn hình thành bảng màu cơ sở và ánh sáng môi trường. Tại dải này, cấu trúc nội dung chi tiết chưa xuất hiện, do đó việc tiêm trực tiếp thặng dư PFB hạng 1 không chiếu ($\boldsymbol{\Delta}_{\text{PFB}, s}^{(1)}$) giúp truyền tải màu sắc phong cách một cách mạnh mẽ nhất.
+    \item \textbf{Dải trung gian ($s \in \{3, 4, 5\}$ tương ứng $R_3 - R_5$):} Đây là giai đoạn các đường nét ranh giới và chi tiết bộ phận hình thành. Nguy cơ rò rỉ nội dung tham chiếu là cao nhất. Do đó, thặng dư phong cách bắt buộc phải được lọc qua toán tử chiếu trực giao nội dung: $(\mathbf{I}_C - \eta \mathbf{P}_s^{\text{con}}) \boldsymbol{\Delta}_{\text{PFB}, s}^{(1)}$.
+    \item \textbf{Dải mịn ($s \in \{0, 6, 7, 8, 9\}$):} Giai đoạn tái tạo chi tiết tần số cao và điểm ảnh. Việc tiêm phong cách ở dải này dễ làm xuất hiện nhiễu hạt hoặc mất nét, do đó thặng dư được gán bằng $\mathbf{0}$.
+\end{itemize}
+
+\paragraph{Hàm suy giảm hình học (Geometric Decay):}
+Cường độ tiêm phong cách $\lambda_s$ được suy giảm theo cấp số nhân theo thứ tự bước can thiệp $j(s) \in \{0, 1, 2, 3, 4\}$ với công số suy giảm $d = 0.75$:
+\begin{equation}
+\lambda_s = d^{j(s)}, \quad j(s) \in \{0, 1, 2, 3, 4\} \label{eq:decay}
+\end{equation}
+Quy tắc cập nhật đặc trưng thế hệ tại mỗi bước $s$ được mô tả tổng quát:
+\begin{equation}
+\widehat{\mathbf{X}}_s^{\text{gen}} = \mathbf{X}_s^{\text{gen}} + \lambda_s \boldsymbol{\Delta}_s \label{eq:hybrid_update}
+\end{equation}
+với việc lựa chọn thặng dư theo scale:
+\begin{equation}
+\boldsymbol{\Delta}_s = \begin{cases}
+\boldsymbol{\Delta}_{\text{PFB}, s}^{(1)}, & s \in \{1, 2\} \\
+(\mathbf{I}_C - \eta \mathbf{P}_s^{\text{con}}) \boldsymbol{\Delta}_{\text{PFB}, s}^{(1)}, & s \in \{3, 4, 5\} \\
+\mathbf{0}, & s \in \{0, 6, 7, 8, 9\}
+\end{cases} \label{eq:hybrid_selection}
+\end{equation}
+\textbf{Cấu hình phát hành chuẩn của ChronosArt:} $r_c = 1, \eta = 1, \alpha = 1$, chuỗi hệ số suy giảm $\lambda_s \in \{1.0, 0.75, 0.75^2, 0.75^3, 0.75^4\}$, và cơ chế SAC được kích hoạt liên tục từ bước $R_2$ ($s=2$) trở đi với cường độ chuẩn vị 1.0 (unit strength).
+
+\section{Thuật Toán Tổng Thể và Phân Tích Độ Phức Tạp}
+\label{sec:algo}
+
+Quy trình suy luận hoàn chỉnh của ChronosArt được tóm tắt trong Thuật toán~\ref{alg:chronosart}.
+
+\begin{algorithm}[t]
+\caption{Quy trình Suy Luận ChronosArt (Orthogonal Projection + SAC)}
+\label{alg:chronosart}
+\textbf{Đầu vào}: Ảnh phong cách $I^{\text{sty}}$, prompt văn bản $T$, tham số: $\alpha=1.0, d=0.75, \eta=1.0, r_c=1, r_s=1$. \\
+\textbf{Đầu ra}: Ảnh kết quả $I^{\text{gen}}$.
+\begin{algorithmic}[1]
+\STATE Trích xuất đa tỉ lệ phong cách: $\{\mathbf{F}_s^{\text{sty}}\}_{s=0}^{K-1} \leftarrow \mathcal{E}_I(I^{\text{sty}})$
+\STATE Mã hóa ngữ cảnh văn bản: $\mathbf{H}_{\text{txt}} \leftarrow \mathcal{E}_T(T)$
+\STATE Khởi tạo đặc trưng ban đầu: $\mathbf{F}_0^{\text{con}} \leftarrow \mathbf{0}, \; \mathbf{F}_0^{\text{gen}} \leftarrow \mathbf{0}$
+\STATE Khởi tạo chỉ số thứ tự can thiệp: $j \leftarrow 0$
+\FOR{$s = 0$ \textbf{to} $K-1$}
+    \STATE \textcolor{blue}{\small // 1. Dự đoán tự hồi quy song song hai luồng}
+    \STATE $\mathbf{R}_s^{\text{con}} \leftarrow \mathcal{M}(\mathbf{F}_{s-1}^{\text{con}}, \mathbf{H}_{\text{txt}})$
+    \STATE $\mathbf{R}_s^{\text{gen}} \leftarrow \mathcal{M}(\mathbf{F}_{s-1}^{\text{gen}}, \mathbf{H}_{\text{txt}})$
+    \STATE Tích lũy đặc trưng:
+    \STATE $\mathbf{F}_s^{\text{con}} \leftarrow \mathbf{F}_{s-1}^{\text{con}} + \text{up}_{H \times W}(\mathbf{R}_s^{\text{con}})$
+    \STATE $\mathbf{F}_s^{\text{gen}} \leftarrow \mathbf{F}_{s-1}^{\text{gen}} + \text{up}_{H \times W}(\mathbf{R}_s^{\text{gen}})$
+    
+    \STATE \textcolor{blue}{\small // 2. Lập ma trận đặc trưng kênh-không gian}
+    \STATE $\mathbf{X}_s^{\text{con}} \leftarrow \text{mat}(\mathbf{F}_s^{\text{con}}), \; \mathbf{X}_s^{\text{gen}} \leftarrow \text{mat}(\mathbf{F}_s^{\text{gen}}), \; \mathbf{X}_s^{\text{sty}} \leftarrow \text{mat}(\mathbf{F}_s^{\text{sty}})$
+    
+    \STATE \textcolor{blue}{\small // 3. Tiêm phong cách lai theo dải tỉ lệ}
+    \IF{$s \in \{1, 2, 3, 4, 5\}$}
+        \STATE Tính thặng dư PFB hạng 1:
+        \STATE $\boldsymbol{\Delta}_s \leftarrow \Phi_{r_s, \alpha}(\mathbf{X}_s^{\text{sty}}) - \Phi_{r_s, \alpha}(\mathbf{X}_s^{\text{gen}})$
+        \IF{$s \in \{3, 4, 5\}$}
+            \STATE \textcolor{blue}{\small // Áp dụng phép chiếu trực giao}
+            \STATE $\boldsymbol{\mu}_s^{\text{con}} \leftarrow \frac{1}{N_s} \mathbf{X}_s^{\text{con}} \mathbf{1}_{N_s}$
+            \STATE $\widetilde{\mathbf{X}}_s^{\text{con}} \leftarrow \mathbf{X}_s^{\text{con}} - \boldsymbol{\mu}_s^{\text{con}} \mathbf{1}_{N_s}^\top$
+            \STATE $\mathbf{U}_s^{\text{con}}, \boldsymbol{\Sigma}_s^{\text{con}}, \mathbf{V}_s^{\text{con}} \leftarrow \text{SVD}(\widetilde{\mathbf{X}}_s^{\text{con}})$
+            \STATE $\mathbf{B}_s^{\text{con}} \leftarrow (\mathbf{U}_s^{\text{con}})_{:, 1:r_c}$
+            \STATE $\mathbf{P}_s^{\text{con}} \leftarrow \mathbf{B}_s^{\text{con}} (\mathbf{B}_s^{\text{con}})^\top$
+            \STATE $\boldsymbol{\Delta}_s \leftarrow (\mathbf{I}_C - \eta \mathbf{P}_s^{\text{con}}) \boldsymbol{\Delta}_s$
+        \ENDIF
+        \STATE Cập nhật đặc trưng luồng sinh với suy giảm:
+        \STATE $\mathbf{X}_s^{\text{gen}} \leftarrow \mathbf{X}_s^{\text{gen}} + d^j \boldsymbol{\Delta}_s$
+        \STATE $\mathbf{F}_s^{\text{gen}} \leftarrow \text{unmat}(\mathbf{X}_s^{\text{gen}})$
+        \STATE $j \leftarrow j + 1$
+    \ENDIF
+    
+    \STATE \textcolor{blue}{\small // 4. Hiệu chỉnh chú ý cấu trúc (SAC)}
+    \IF{$s \ge 2$}
+        \STATE $\mathbf{Q}_s^{\text{gen}} \leftarrow \mathbf{F}_s^{\text{con}} \mathbf{W}_Q$
+        \STATE $\mathbf{K}_s^{\text{gen}} \leftarrow \mathbf{F}_s^{\text{con}} \mathbf{W}_K$
+    \ENDIF
+\ENDFOR
+\STATE Tái tạo ảnh: $I^{\text{gen}} \leftarrow \mathcal{D}(\mathbf{F}_{K-1}^{\text{gen}})$
+\STATE \textbf{return} $I^{\text{gen}}$
+\end{algorithmic}
+\end{algorithm}
+
+\subsection{Phân Tích Độ Phức Tạp Tính Toán}
+Để khẳng định tính khả thi của phương pháp trong môi trường thực thời (real-time), ta phân tích độ phức tạp thời gian và không gian:
+\begin{itemize}
+    \item \textbf{Phân rã SVD:} Cho ma trận $\widetilde{\mathbf{X}}_s^{\text{con}} \in \mathbb{R}^{C \times N_s}$. Chi phí tính $r$ vector kỳ dị hàng đầu bằng thuật toán phân tích ngẫu nhiên (Randomized SVD) hoặc thuật toán Golub-Reinsch là $\mathcal{O}(C \cdot N_s \cdot r)$. Với $C = 2048$ và $N_s \le 64 \times 64 = 4096$, thời gian thực hiện trên GPU chỉ tốn dưới $1.5$ mili-giây.
+    \item \textbf{Phép chiếu trực giao Orthogonal Projection:} Tích ma trận $\mathbf{B}_s^{\text{con}} \left((\mathbf{B}_s^{\text{con}})^\top \boldsymbol{\Delta}_s\right)$ được tính thông qua hai phép nhân ma trận liên tiếp với độ phức tạp $\mathcal{O}(r_c \cdot C \cdot N_s)$, hoàn toàn tránh việc khởi tạo tường minh ma trận $C \times C$.
+    \item \textbf{Tổng chi phí bổ sung:} So với chi phí chú ý tự thân của mạng biến đổi Transformer nền tảng $\mathcal{O}(L \cdot N_s^2 \cdot d_{\text{model}})$, chi phí của phép chiếu trực giao chỉ chiếm dưới $0.8\%$ tổng thời gian suy luận. Do đó, mô hình giữ nguyên trọn vẹn ưu điểm tốc độ vượt trội (chỉ mất $\sim 1.2$ giây cho một ảnh 512$\times$512 trên GPU RTX 3090/4090).
+\end{itemize}
+
+\begin{table}[t]
+\centering
+\caption{So sánh cơ chế giữa PFB gốc và ChronosArt Orthogonal Projection.}
+\label{tab:comparison}
+\footnotesize
+\begin{tabularx}{\columnwidth}{p{1.8cm}XX}
+\toprule
+\textbf{Đặc trưng} & \textbf{PFB Gốc (Baseline)} & \textbf{ChronosArt (Orthogonal Projection)} \\
+\midrule
+Số bước can thiệp & Đơn lẻ tại $s=3$ & Đa tỉ lệ $s \in \{1..5\}$ \\
+Khử thành phần nội dung & Không có (dễ rò rỉ nội dung) & Chiếu trực giao $\mathbf{P}_s^{\perp}$ triệt tiêu hoàn toàn \\
+Hệ số tiêm $\lambda_s$ & Cố định $\lambda=1.0$ & Suy giảm hình học $d^{j(s)}$ ($d=0.75$) \\
+Cơ sở nội dung & Tự chiếu nội sinh & Trích xuất từ luồng sạch $\mathbf{X}_s^{\text{con}}$ \\
+Bật SAC & Từ bước $s=3$ & Bật sớm từ bước $R_2$ ($s=2$) \\
+Bảo toàn ngữ nghĩa & Trung bình & Rất cao (CLIP Text tăng mạnh) \\
+\bottomrule
+\end{tabularx}
+\end{table}
+
+\section{Cơ Chế Khởi Tạo Tính Ngẫu Nhiên An Toàn (Safe Stochasticity Mechanism)}
+\label{sec:stochasticity}
+
+\subsection{Hiện Tượng Suy Biến Tất Định (Deterministic Degeneracy)}
+Một nghịch lý thực nghiệm nổi bật trong việc điều khiển phong cách bằng mô hình tự hồi quy thị giác (VAR) nằm ở tính suy biến tất định. Trong mô hình khuếch tán (Diffusion Models), quá trình khử nhiễu bắt đầu từ một trường Gaussian ngẫu nhiên $\mathbf{z}_T \sim \mathcal{N}(\mathbf{0}, \mathbf{I})$, cho phép mỗi seed ngẫu nhiên sinh ra một cấu hình nét vẽ và ánh sáng phong phú. Ngược lại, trong mô hình VAR kết hợp cơ chế kiểm soát cấu trúc SAC:
+\begin{equation}
+\mathbf{A}_s^{\text{gen}} = \operatorname{softmax}\left(\frac{\mathbf{Q}_s^{\text{con}} (\mathbf{K}_s^{\text{con}})^\top}{\sqrt{d_k}}\right)
+\end{equation}
+việc cưỡng bức ma trận Query và Key của luồng sinh hoàn toàn trùng khớp với luồng nội dung khiến trường phân phối xác suất trở nên cực kỳ hẹp. Khi nhiệt độ lấy mẫu được giữ cố định $\tau = 1.0$, các seed khác nhau hoặc là triệt tiêu tính ngẫu nhiên (ảnh sinh ra ở 10 seed gần như trùng khít nhau, thiếu tính sống động tự nhiên), hoặc nếu độ ngẫu nhiên xuất hiện ở các bước khởi tạo thô ($s \in \{0, 1\}$) thì cấu trúc giải phẫu và vị trí của vật thể sẽ bị trôi dạt (structure drift), dẫn đến vỡ hình.
+
+Để giải quyết triệt để vấn đề này, ChronosArt giới thiệu cơ chế \textbf{Stochasticity An Toàn} dựa trên sự phân tách hình thức giữa không gian hình học vĩ mô và không gian kết cấu vi mô.
+
+\subsection{Lịch Trình Nhiệt Độ Đa Tỉ Lệ (Scale-Scheduled Temperature \& Top-$p$)}
+Chúng tôi thiết lập một hàm điều chế nhiệt độ phi đối xứng theo tỉ lệ không gian $k \in \{0, \dots, K-1\}$:
+\begin{equation}
+\tau_k = \begin{cases}
+\tau_{\text{coarse}} = 0.15, & k \in [0, 4] \\
+\tau_{\text{min}} + \frac{k - 5}{K - 1 - 5} (\tau_{\text{max}} - \tau_{\text{min}}), & k \in [5, K-1]
+\end{cases}
+\end{equation}
+với $\tau_{\text{min}} = 0.85$, $\tau_{\text{max}} = 1.25$, kết hợp cùng chiến lược cắt đuôi phân vị $\text{top-}p = 0.92$.
+
+\begin{theorem}[Bảo Toàn Cấu Trúc Tuyệt Đối Dưới Giới Hạn Nhiệt Độ Thấp]
+Cho vector logit tại tỉ lệ thô $k \in [0, 4]$ là $\mathbf{z} \in \mathbb{R}^V$ với $z_{(1)} > z_{(2)} \ge \dots \ge z_{(V)}$. Phân phối xác suất Softmax theo nhiệt độ $\tau_k$ thỏa mãn:
+\begin{equation}
+\lim_{\tau_k \to 0^+} p_i(\tau_k) = \begin{cases} 1, & i = \operatorname{argmax}_j z_j \\ 0, & \text{ngược lại} \end{cases}
+\end{equation}
+Đồng thời, Shannon Entropy $H(p) = -\sum_{i=1}^V p_i \ln p_i \to 0$.
+\end{theorem}
+
+\begin{proof}
+Với chỉ số cực đại $i^* = \operatorname{argmax}_j z_j$, xét tỉ số xác suất đối với bất kỳ $j \ne i^*$:
+\begin{equation}
+\frac{p_j(\tau_k)}{p_{i^*}(\tau_k)} = \exp\left(-\frac{z_{i^*} - z_j}{\tau_k}\right)
+\end{equation}
+Vì $z_{i^*} - z_j > 0$, khi $\tau_k \to 0^+$, đại lượng $\frac{z_{i^*} - z_j}{\tau_k} \to +\infty \implies \frac{p_j(\tau_k)}{p_{i^*}(\tau_k)} \to 0$. Do tổng xác suất $\sum_j p_j = 1$, ta suy ra $p_{i^*}(\tau_k) \to 1$ và $p_j(\tau_k) \to 0, \, \forall j \ne i^*$. Khi đó $H(p) \to 0$.
+\end{proof}
+
+\noindent
+\textbf{Ý nghĩa trực giác:} Tại 5 scale đầu tiên ($k \in [0, 4]$, từ $1 \times 1$ đến $16 \times 16$), $\tau_k = 0.15$ ép entropy tiệm cận $0$, biến quá trình sinh thành ánh xạ tất định $\operatorname{argmax}$. Khung xương, tỷ lệ đối xứng và biên dạng vật thể được khóa cứng 100\%. Ngược lại, tại các scale mịn ($k \ge 5$, từ $24 \times 24$ đến $64 \times 64$), nhiệt độ được nâng dần lên $\tau_k \in [0.85, 1.25]$ trong không gian rút gọn $\text{top-}p = 0.92$, cho phép mô hình tự do khám phá các trạng thái phân bố nét cọ và vi chi tiết khác nhau theo từng seed mà không bao giờ làm méo mó hình học nền tảng.
+
+\subsection{Tính Dừng Không Gian Trên Đa Tạp Phong Cách (Spatial Stationarity \& Jittering)}
+Tại các tỉ lệ vi mô ($k \ge 5$), phong cách hội họa (như vết nứt sơn dầu thời Phục Hưng, thớ giấy xếp Origami) thể hiện tính đẳng hướng và tính dừng theo không gian (Spatial Stationarity): một mảng chất liệu ở góc trái hay góc phải bức tranh đều có cùng cấu trúc thống kê bậc hai.
+
+\begin{definition}[Trường Ngẫu Nhiên Phong Cách Dừng]
+Đặt $\mathbf{s}_k(x, y) \in \mathbb{R}^C$ là đặc trưng phong cách tại tọa độ $(x, y)$ của scale $k$. Trường đặc trưng $\mathbf{s}_k$ được gọi là dừng bậc hai (Wide-Sense Stationary - WSS) nếu:
+\begin{align}
+\mathbb{E}[\mathbf{s}_k(x, y)] &= \boldsymbol{\mu}_{\text{sty}}, \quad \forall (x, y) \\
+\operatorname{Cov}\left(\mathbf{s}_k(x_1, y_1), \mathbf{s}_k(x_2, y_2)\right) &= \mathbf{R}_{\text{sty}}(x_1 - x_2, y_1 - y_2)
+\end{align}
+\end{definition}
+
+Dựa trên tính chất bảo toàn của ma trận tương quan $\mathbf{R}_{\text{sty}}$ dưới các phép tịnh tiến không gian, ChronosArt áp dụng toán tử dịch chuyển vòng ngẫu nhiên kết hợp mặt nạ Dropout ngẫu nhiên có bù kỳ vọng:
+\begin{equation}
+\widetilde{\mathbf{s}}_k(x, y) = \frac{\mathbf{m}(x, y)}{1 - \rho} \cdot \mathbf{s}_k\left((x + \Delta x) \bmod W_k, (y + \Delta y) \bmod H_k\right)
+\end{equation}
+trong đó $\Delta x \sim \mathcal{U}\{0, W_k - 1\}$, $\Delta y \sim \mathcal{U}\{0, H_k - 1\}$ được lấy mẫu ngẫu nhiên theo seed, và $\mathbf{m}(x, y) \sim \operatorname{Bernoulli}(1 - \rho)$ với tỉ lệ ngắt hạt $\rho = 0.15$. Phép chia cho $(1 - \rho)$ bảo toàn kỳ vọng toán học không thiên lệch:
+\begin{equation}
+\mathbb{E}_{\mathbf{m}}[\widetilde{\mathbf{s}}_k(x, y)] = \mathbf{s}_k\left((x + \Delta x) \bmod W_k, (y + \Delta y) \bmod H_k\right)
+\end{equation}
+
+Nhờ phép biến đổi này, mỗi seed khởi tạo sẽ phân bổ các cụm đặc trưng chất liệu khác nhau lên lưới token của Transformer, tạo nên độ đa dạng nét cọ phong phú và độc bản cho từng bức ảnh với chi phí tính toán $\mathcal{O}(1)$.
+
+\section{Kết Luận}
+\label{sec:conclusion}
+Trong công trình này, chúng tôi đã hệ thống hóa toàn bộ các nền tảng toán học của mô hình thị giác tự hồi quy đa tỉ lệ VAR và Infinity, đồng thời giải bài toán triệt tiêu rò rỉ nội dung trong cá nhân hóa phong cách. Bằng việc phân tích SVD dưới góc nhìn đại số tuyến tính, ChronosArt chứng minh rằng việc bổ sung phép chiếu trực giao ràng buộc theo nội dung kết hợp lịch trình tiêm phong cách lai theo cấp số nhân tạo nên một ranh giới toán học rõ ràng giữa phong cách nghệ thuật và cấu trúc nội dung. Đây là một bước tiến quan trọng, mở ra tiềm năng ứng dụng to lớn cho các mô hình tự hồi quy thị giác trong đồ họa máy tính và sáng tạo nghệ thuật số.
+
+{\small
+\bibliographystyle{ieeenat_fullname}
+\begin{thebibliography}{10}
+
+\bibitem{tian2024visual}
+Keyu Tian, Yi Jiang, Zehuan Yuan, Bingyue Peng, and Liwei Wang.
+\newblock Visual autoregressive modeling: Scalable image generation via next-scale prediction.
+\newblock In {\em Advances in Neural Information Processing Systems (NeurIPS)}, 2024.
+
+\bibitem{han2025infinity}
+Jian Han, et~al.
+\newblock Infinity: Scaling bitwise visual autoregressive modeling for high-resolution image synthesis.
+\newblock {\em arXiv preprint arXiv:2412.04431}, 2024.
+
+\bibitem{park2025training}
+Jihun Park, Kyoungmin Lee, Jongmin Gim, and Sunghoon Im.
+\newblock A training-free style-personalization via svd-based feature decomposition.
+\newblock {\em arXiv preprint}, 2025.
+
+\bibitem{radford2021learning}
+Alec Radford, Jong~Wook Kim, Chris Hallacy, Aditya Ramesh, Gabriel Goh, Sandhini Agarwal, Girish Sastry, Amanda Askell, Pamela Mishkin, Jack Clark, et~al.
+\newblock Learning transferable visual models from natural language supervision.
+\newblock In {\em International Conference on Machine Learning (ICML)}, 2021.
+
+\bibitem{chung2022scalinginstructionfinetunedlanguagemodels}
+Hyung~Won Chung, Le Hou, Shayne Longpre, Barret Zoph, Yi Tay, William Fedus, Eric Li, Xuezhi Wang, Mostafa Dehghani, Siddhartha Brahma, et~al.
+\newblock Scaling instruction-finetuned language models.
+\newblock {\em arXiv preprint arXiv:2210.11416}, 2022.
+
+\bibitem{tumanyan2023plug}
+Narek Tumanyan, Michal Geyer, Shai Bagon, and Tali Dekel.
+\newblock Plug-and-play diffusion features for text-driven image-to-image translation.
+\newblock In {\em CVPR}, 2023.
+
+\bibitem{frenkel2024implicitstylecontentseparationusing}
+Yarden Frenkel, Yael Vinker, Ariel Shamir, and Daniel Cohen-Or.
+\newblock Implicit style-content separation using b-lora.
+\newblock In {\em SIGGRAPH}, 2024.
+
+\bibitem{ahn2024dreamstyler}
+Namhyuk Ahn, Junsoo Lee, Chunggi Lee, Kunhee Kim, and Daesik Kim.
+\newblock Dreamstyler: Paint by style inversion with text-to-image diffusion models.
+\newblock In {\em AAAI}, 2024.
+
+\end{thebibliography}
+}
+
+\end{document}

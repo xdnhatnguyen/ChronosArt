@@ -1,0 +1,25 @@
+easydict
+typed-argument-parser
+seaborn
+kornia
+gputil
+colorama
+omegaconf
+pandas
+timm==0.9.6
+decord
+transformers
+tqdm
+# Use the CUDA-enabled PyTorch already supplied by Colab. Pinning torch here
+# causes a large reinstall and can mismatch the active CUDA runtime.
+pytz
+pandas
+wandb
+colorama
+imageio
+einops
+openai
+httpx==0.20.0
+opencv-python
+# Optional: this project uses PyTorch SDPA when FlashAttention has no wheel for
+# the active Python/PyTorch version (notably current Colab Python 3.13 images).

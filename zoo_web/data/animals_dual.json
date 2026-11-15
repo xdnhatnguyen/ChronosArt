@@ -1,0 +1,402 @@
+[
+  {
+    "id": "elephant",
+    "common_name": "Majestic Elephant",
+    "scientific_name": "Loxodonta africana",
+    "category": "Savanna Titan",
+    "lore": "Loài thú trên cạn khổng lồ với đôi tai lớn và chiếc vòi khéo léo. Cấu trúc cơ bắp vĩ mô được khóa chặt vững chãi.",
+    "stats": {
+      "weight": "6,000 kg",
+      "speed": "40 km/h",
+      "lifespan": "70 yrs"
+    },
+    "sketch_prompt": "A majestic elephant walking forward, wildlife in pencil sketch style",
+    "origami_prompt": "A majestic elephant walking forward, wildlife in colorful origami style",
+    "sketch": {
+      "prompt": "A majestic elephant walking forward, wildlife in pencil sketch style",
+      "full_webp": [
+        "assets/animals/elephant/sketch_frame_0.webp",
+        "assets/animals/elephant/sketch_frame_1.webp",
+        "assets/animals/elephant/sketch_frame_2.webp"
+      ],
+      "nobg_webp": [
+        "assets/animals/elephant/sketch_frame_0_nobg.webp",
+        "assets/animals/elephant/sketch_frame_1_nobg.webp",
+        "assets/animals/elephant/sketch_frame_2_nobg.webp"
+      ]
+    },
+    "origami": {
+      "prompt": "A majestic elephant walking forward, wildlife in colorful origami style",
+      "full_webp": [
+        "assets/animals/elephant/origami_frame_0.webp",
+        "assets/animals/elephant/origami_frame_1.webp",
+        "assets/animals/elephant/origami_frame_2.webp"
+      ],
+      "nobg_webp": [
+        "assets/animals/elephant/origami_frame_0_nobg.webp",
+        "assets/animals/elephant/origami_frame_1_nobg.webp",
+        "assets/animals/elephant/origami_frame_2_nobg.webp"
+      ]
+    }
+  },
+  {
+    "id": "lion",
+    "common_name": "Noble Lion",
+    "scientific_name": "Panthera leo",
+    "category": "Apex Monarch",
+    "lore": "Chúa tể thảo nguyên với bờm lông quyền uy. Các nếp gấp góc cạnh hoặc thớ chì vi mô làm nổi bật thần thái oai nghiêm.",
+    "stats": {
+      "weight": "190 kg",
+      "speed": "80 km/h",
+      "lifespan": "15 yrs"
+    },
+    "sketch_prompt": "A noble lion with a majestic mane looking forward, wildlife in pencil sketch style",
+    "origami_prompt": "A noble lion with a majestic mane looking forward, wildlife in colorful origami style",
+    "sketch": {
+      "prompt": "A noble lion with a majestic mane looking forward, wildlife in pencil sketch style",
+      "full_webp": [
+        "assets/animals/lion/sketch_frame_0.webp",
+        "assets/animals/lion/sketch_frame_1.webp",
+        "assets/animals/lion/sketch_frame_2.webp"
+      ],
+      "nobg_webp": [
+        "assets/animals/lion/sketch_frame_0_nobg.webp",
+        "assets/animals/lion/sketch_frame_1_nobg.webp",
+        "assets/animals/lion/sketch_frame_2_nobg.webp"
+      ]
+    },
+    "origami": {
+      "prompt": "A noble lion with a majestic mane looking forward, wildlife in colorful origami style",
+      "full_webp": [
+        "assets/animals/lion/origami_frame_0.webp",
+        "assets/animals/lion/origami_frame_1.webp",
+        "assets/animals/lion/origami_frame_2.webp"
+      ],
+      "nobg_webp": [
+        "assets/animals/lion/origami_frame_0_nobg.webp",
+        "assets/animals/lion/origami_frame_1_nobg.webp",
+        "assets/animals/lion/origami_frame_2_nobg.webp"
+      ]
+    }
+  },
+  {
+    "id": "tiger",
+    "common_name": "Fierce Tiger",
+    "scientific_name": "Panthera tigris",
+    "category": "Jungle Predator",
+    "lore": "Bậc thầy ngụy trang với những dải vằn tương phản. Thuật toán ChronosArt bảo toàn hoàn hảo các đường vân sọc đặc trưng.",
+    "stats": {
+      "weight": "260 kg",
+      "speed": "65 km/h",
+      "lifespan": "20 yrs"
+    },
+    "sketch_prompt": "A powerful tiger walking stealthily forward, wildlife in pencil sketch style",
+    "origami_prompt": "A powerful tiger walking stealthily forward, wildlife in colorful origami style",
+    "sketch": {
+      "prompt": "A powerful tiger walking stealthily forward, wildlife in pencil sketch style",
+      "full_webp": [
+        "assets/animals/tiger/sketch_frame_0.webp",
+        "assets/animals/tiger/sketch_frame_1.webp",
+        "assets/animals/tiger/sketch_frame_2.webp"
+      ],
+      "nobg_webp": [
+        "assets/animals/tiger/sketch_frame_0_nobg.webp",
+        "assets/animals/tiger/sketch_frame_1_nobg.webp",
+        "assets/animals/tiger/sketch_frame_2_nobg.webp"
+      ]
+    },
+    "origami": {
+      "prompt": "A powerful tiger walking stealthily forward, wildlife in colorful origami style",
+      "full_webp": [
+        "assets/animals/tiger/origami_frame_0.webp",
+        "assets/animals/tiger/origami_frame_1.webp",
+        "assets/animals/tiger/origami_frame_2.webp"
+      ],
+      "nobg_webp": [
+        "assets/animals/tiger/origami_frame_0_nobg.webp",
+        "assets/animals/tiger/origami_frame_1_nobg.webp",
+        "assets/animals/tiger/origami_frame_2_nobg.webp"
+      ]
+    }
+  },
+  {
+    "id": "wolf",
+    "common_name": "Lone Wolf",
+    "scientific_name": "Canis lupus",
+    "category": "Wilderness Phantom",
+    "lore": "Chiến binh bất khuất của vùng cực giá lạnh. Lớp lông rậm rạp được tái tạo qua các nếp gấp đa giác sắc sảo.",
+    "stats": {
+      "weight": "45 kg",
+      "speed": "60 km/h",
+      "lifespan": "13 yrs"
+    },
+    "sketch_prompt": "A majestic lone wolf standing proudly, wildlife in pencil sketch style",
+    "origami_prompt": "A majestic lone wolf standing proudly, wildlife in colorful origami style",
+    "sketch": {
+      "prompt": "A majestic lone wolf standing proudly, wildlife in pencil sketch style",
+      "full_webp": [
+        "assets/animals/wolf/sketch_frame_0.webp",
+        "assets/animals/wolf/sketch_frame_1.webp",
+        "assets/animals/wolf/sketch_frame_2.webp"
+      ],
+      "nobg_webp": [
+        "assets/animals/wolf/sketch_frame_0_nobg.webp",
+        "assets/animals/wolf/sketch_frame_1_nobg.webp",
+        "assets/animals/wolf/sketch_frame_2_nobg.webp"
+      ]
+    },
+    "origami": {
+      "prompt": "A majestic lone wolf standing proudly, wildlife in colorful origami style",
+      "full_webp": [
+        "assets/animals/wolf/origami_frame_0.webp",
+        "assets/animals/wolf/origami_frame_1.webp",
+        "assets/animals/wolf/origami_frame_2.webp"
+      ],
+      "nobg_webp": [
+        "assets/animals/wolf/origami_frame_0_nobg.webp",
+        "assets/animals/wolf/origami_frame_1_nobg.webp",
+        "assets/animals/wolf/origami_frame_2_nobg.webp"
+      ]
+    }
+  },
+  {
+    "id": "eagle",
+    "common_name": "Soaring Eagle",
+    "scientific_name": "Aquila chrysaetos",
+    "category": "Sky Sovereign",
+    "lore": "Chúa tể bầu trời với sải cánh uy lực. Từng phiến lông vũ được phân tầng hình học ấn tượng.",
+    "stats": {
+      "wingspan": "2.3 m",
+      "dive_speed": "320 km/h",
+      "lifespan": "30 yrs"
+    },
+    "sketch_prompt": "A powerful eagle with wings spread wide, wildlife in pencil sketch style",
+    "origami_prompt": "A powerful eagle with wings spread wide, wildlife in colorful origami style",
+    "sketch": {
+      "prompt": "A powerful eagle with wings spread wide, wildlife in pencil sketch style",
+      "full_webp": [
+        "assets/animals/eagle/sketch_frame_0.webp",
+        "assets/animals/eagle/sketch_frame_1.webp",
+        "assets/animals/eagle/sketch_frame_2.webp"
+      ],
+      "nobg_webp": [
+        "assets/animals/eagle/sketch_frame_0_nobg.webp",
+        "assets/animals/eagle/sketch_frame_1_nobg.webp",
+        "assets/animals/eagle/sketch_frame_2_nobg.webp"
+      ]
+    },
+    "origami": {
+      "prompt": "A powerful eagle with wings spread wide, wildlife in colorful origami style",
+      "full_webp": [
+        "assets/animals/eagle/origami_frame_0.webp",
+        "assets/animals/eagle/origami_frame_1.webp",
+        "assets/animals/eagle/origami_frame_2.webp"
+      ],
+      "nobg_webp": [
+        "assets/animals/eagle/origami_frame_0_nobg.webp",
+        "assets/animals/eagle/origami_frame_1_nobg.webp",
+        "assets/animals/eagle/origami_frame_2_nobg.webp"
+      ]
+    }
+  },
+  {
+    "id": "deer",
+    "common_name": "Graceful Deer",
+    "scientific_name": "Cervus elaphus",
+    "category": "Forest Spirit",
+    "lore": "Sinh linh thanh thoát của rừng sâu với cặp gạc phân nhánh kiêu hãnh và dáng đứng nhẹ nhàng uyển chuyển.",
+    "stats": {
+      "weight": "160 kg",
+      "speed": "75 km/h",
+      "lifespan": "18 yrs"
+    },
+    "sketch_prompt": "A graceful deer with branching antlers standing in forest, wildlife in pencil sketch style",
+    "origami_prompt": "A graceful deer with branching antlers standing in forest, wildlife in colorful origami style",
+    "sketch": {
+      "prompt": "A graceful deer with branching antlers standing in forest, wildlife in pencil sketch style",
+      "full_webp": [
+        "assets/animals/deer/sketch_frame_0.webp",
+        "assets/animals/deer/sketch_frame_1.webp",
+        "assets/animals/deer/sketch_frame_2.webp"
+      ],
+      "nobg_webp": [
+        "assets/animals/deer/sketch_frame_0_nobg.webp",
+        "assets/animals/deer/sketch_frame_1_nobg.webp",
+        "assets/animals/deer/sketch_frame_2_nobg.webp"
+      ]
+    },
+    "origami": {
+      "prompt": "A graceful deer with branching antlers standing in forest, wildlife in colorful origami style",
+      "full_webp": [
+        "assets/animals/deer/origami_frame_0.webp",
+        "assets/animals/deer/origami_frame_1.webp",
+        "assets/animals/deer/origami_frame_2.webp"
+      ],
+      "nobg_webp": [
+        "assets/animals/deer/origami_frame_0_nobg.webp",
+        "assets/animals/deer/origami_frame_1_nobg.webp",
+        "assets/animals/deer/origami_frame_2_nobg.webp"
+      ]
+    }
+  },
+  {
+    "id": "fox",
+    "common_name": "Red Fox",
+    "scientific_name": "Vulpes vulpes",
+    "category": "Shadow Trickster",
+    "lore": "Loài cáo thông minh và nhanh nhẹn với chiếc đuôi bông bềnh rực rỡ, thoắt ẩn thoắt hiện trong thung lũng sương mù.",
+    "stats": {
+      "weight": "8 kg",
+      "speed": "50 km/h",
+      "lifespan": "10 yrs"
+    },
+    "sketch_prompt": "A clever red fox with a bushy tail sitting, wildlife in pencil sketch style",
+    "origami_prompt": "A clever red fox with a bushy tail sitting, wildlife in colorful origami style",
+    "sketch": {
+      "prompt": "A clever red fox with a bushy tail sitting, wildlife in pencil sketch style",
+      "full_webp": [
+        "assets/animals/fox/sketch_frame_0.webp",
+        "assets/animals/fox/sketch_frame_1.webp",
+        "assets/animals/fox/sketch_frame_2.webp"
+      ],
+      "nobg_webp": [
+        "assets/animals/fox/sketch_frame_0_nobg.webp",
+        "assets/animals/fox/sketch_frame_1_nobg.webp",
+        "assets/animals/fox/sketch_frame_2_nobg.webp"
+      ]
+    },
+    "origami": {
+      "prompt": "A clever red fox with a bushy tail sitting, wildlife in colorful origami style",
+      "full_webp": [
+        "assets/animals/fox/origami_frame_0.webp",
+        "assets/animals/fox/origami_frame_1.webp",
+        "assets/animals/fox/origami_frame_2.webp"
+      ],
+      "nobg_webp": [
+        "assets/animals/fox/origami_frame_0_nobg.webp",
+        "assets/animals/fox/origami_frame_1_nobg.webp",
+        "assets/animals/fox/origami_frame_2_nobg.webp"
+      ]
+    }
+  },
+  {
+    "id": "panda",
+    "common_name": "Giant Panda",
+    "scientific_name": "Ailuropoda melanoleuca",
+    "category": "Bamboo Sage",
+    "lore": "Biểu tượng hòa bình và vẻ đẹp đáng yêu của rừng trúc phương Đông với hai mảng khoang đen trắng kinh điển.",
+    "stats": {
+      "weight": "120 kg",
+      "speed": "32 km/h",
+      "lifespan": "20 yrs"
+    },
+    "sketch_prompt": "A cute giant panda sitting and eating bamboo, wildlife in pencil sketch style",
+    "origami_prompt": "A cute giant panda sitting and eating bamboo, wildlife in colorful origami style",
+    "sketch": {
+      "prompt": "A cute giant panda sitting and eating bamboo, wildlife in pencil sketch style",
+      "full_webp": [
+        "assets/animals/panda/sketch_frame_0.webp",
+        "assets/animals/panda/sketch_frame_1.webp",
+        "assets/animals/panda/sketch_frame_2.webp"
+      ],
+      "nobg_webp": [
+        "assets/animals/panda/sketch_frame_0_nobg.webp",
+        "assets/animals/panda/sketch_frame_1_nobg.webp",
+        "assets/animals/panda/sketch_frame_2_nobg.webp"
+      ]
+    },
+    "origami": {
+      "prompt": "A cute giant panda sitting and eating bamboo, wildlife in colorful origami style",
+      "full_webp": [
+        "assets/animals/panda/origami_frame_0.webp",
+        "assets/animals/panda/origami_frame_1.webp",
+        "assets/animals/panda/origami_frame_2.webp"
+      ],
+      "nobg_webp": [
+        "assets/animals/panda/origami_frame_0_nobg.webp",
+        "assets/animals/panda/origami_frame_1_nobg.webp",
+        "assets/animals/panda/origami_frame_2_nobg.webp"
+      ]
+    }
+  },
+  {
+    "id": "owl",
+    "common_name": "Wise Owl",
+    "scientific_name": "Bubo virginianus",
+    "category": "Nocturnal Oracle",
+    "lore": "Kẻ thống trị màn đêm với đôi mắt tròn sáng quắc và khả năng định vị con mồi trong bóng tối tuyệt đối.",
+    "stats": {
+      "wingspan": "1.5 m",
+      "speed": "65 km/h",
+      "lifespan": "15 yrs"
+    },
+    "sketch_prompt": "A majestic horned owl perched on a branch, wildlife in pencil sketch style",
+    "origami_prompt": "A majestic horned owl perched on a branch, wildlife in colorful origami style",
+    "sketch": {
+      "prompt": "A majestic horned owl perched on a branch, wildlife in pencil sketch style",
+      "full_webp": [
+        "assets/animals/owl/sketch_frame_0.webp",
+        "assets/animals/owl/sketch_frame_1.webp",
+        "assets/animals/owl/sketch_frame_2.webp"
+      ],
+      "nobg_webp": [
+        "assets/animals/owl/sketch_frame_0_nobg.webp",
+        "assets/animals/owl/sketch_frame_1_nobg.webp",
+        "assets/animals/owl/sketch_frame_2_nobg.webp"
+      ]
+    },
+    "origami": {
+      "prompt": "A majestic horned owl perched on a branch, wildlife in colorful origami style",
+      "full_webp": [
+        "assets/animals/owl/origami_frame_0.webp",
+        "assets/animals/owl/origami_frame_1.webp",
+        "assets/animals/owl/origami_frame_2.webp"
+      ],
+      "nobg_webp": [
+        "assets/animals/owl/origami_frame_0_nobg.webp",
+        "assets/animals/owl/origami_frame_1_nobg.webp",
+        "assets/animals/owl/origami_frame_2_nobg.webp"
+      ]
+    }
+  },
+  {
+    "id": "chameleon",
+    "common_name": "Prism Chameleon",
+    "scientific_name": "Chamaeleo calyptratus",
+    "category": "Chromatic Mystic",
+    "lore": "Bậc thầy biến hóa màu sắc với chiếc đuôi cuộn xoắn và cặp mắt độc lập xoay chuyển 360 độ.",
+    "stats": {
+      "length": "45 cm",
+      "tongue_reach": "1.5x body",
+      "lifespan": "7 yrs"
+    },
+    "sketch_prompt": "A colorful chameleon perched on a twig, wildlife in pencil sketch style",
+    "origami_prompt": "A colorful chameleon perched on a twig, wildlife in colorful origami style",
+    "sketch": {
+      "prompt": "A colorful chameleon perched on a twig, wildlife in pencil sketch style",
+      "full_webp": [
+        "assets/animals/chameleon/sketch_frame_0.webp",
+        "assets/animals/chameleon/sketch_frame_1.webp",
+        "assets/animals/chameleon/sketch_frame_2.webp"
+      ],
+      "nobg_webp": [
+        "assets/animals/chameleon/sketch_frame_0_nobg.webp",
+        "assets/animals/chameleon/sketch_frame_1_nobg.webp",
+        "assets/animals/chameleon/sketch_frame_2_nobg.webp"
+      ]
+    },
+    "origami": {
+      "prompt": "A colorful chameleon perched on a twig, wildlife in colorful origami style",
+      "full_webp": [
+        "assets/animals/chameleon/origami_frame_0.webp",
+        "assets/animals/chameleon/origami_frame_1.webp",
+        "assets/animals/chameleon/origami_frame_2.webp"
+      ],
+      "nobg_webp": [
+        "assets/animals/chameleon/origami_frame_0_nobg.webp",
+        "assets/animals/chameleon/origami_frame_1_nobg.webp",
+        "assets/animals/chameleon/origami_frame_2_nobg.webp"
+      ]
+    }
+  }
+]

@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ZooSketch: Living Wildlife in Training-Free Style Personalization</title>
+  <meta name="description" content="ZooSketch: Living Wildlife in Training-Free Style Personalization with Visual Autoregressive Models (Infinity-2B) and Content-Orthogonal Feature Projection.">
+  <link rel="stylesheet" href="css/style.css">
+  <link rel="icon" type="image/png" href="assets/style_pencil_sketch.png">
+</head>
+<body id="top">
+
+  <!-- Subtle Shimmer Particles on Hover -->
+  <canvas id="particle-canvas"></canvas>
+
+  <!-- Top Navigation Bar -->
+  <nav class="top-nav" aria-label="Sections">
+    <div class="nav-container">
+      <a href="#top" class="nav-brand">
+        Zoo<span>Sketch</span>
+      </a>
+      <ul class="nav-links">
+        <li><a href="#stage">Showcase</a></li>
+        <li><a href="#gallery">Gallery</a></li>
+        <li><a href="#method">Method</a></li>
+        <li><a href="#bibtex">BibTeX</a></li>
+      </ul>
+    </div>
+  </nav>
+
+  <!-- Hero Header: Academic Project Title & Authors -->
+  <header class="hero-header">
+    <h1 class="paper-title">ZooSketch: Living Wildlife in Training-Free Style Personalization</h1>
+    
+    <div class="authors-row">
+      <a href="mailto:nguyenminhnhatcs@gmail.com" class="author-name">Minh-Nhat Nguyen</a>
+    </div>
+    
+    <p class="affiliation">
+      Faculty of Information Technology, University of Science, VNU-HCM (FIT, US-VNUHCM)
+    </p>
+
+    <!-- Paper & Code Link Badges -->
+    <div class="link-badges">
+      <a class="badge-btn" href="https://github.com/xdnhatnguyen/ChronosArt" target="_blank">
+        <svg viewBox="0 0 16 16"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+        GitHub Code
+      </a>
+      <a class="badge-btn" href="report/report.pdf" target="_blank">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
+        Technical Report (PDF)
+      </a>
+      <a class="badge-btn" href="#bibtex">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+        BibTeX
+      </a>
+    </div>
+
+    <!-- Style Exhibition Switcher: Sketch vs Origami -->
+    <div class="exhibition-switch-container">
+      <div class="switch-pill">
+        <button class="tab-btn active sketch" id="btn-theme-sketch">
+          <span>✏️ Pencil Sketch</span>
+        </button>
+        <button class="tab-btn origami" id="btn-theme-origami">
+          <span>🎨 Colorful Origami</span>
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Interactive Living Stage Showcase -->
+  <section class="stage-container" id="stage">
+    <div class="stage-card">
+      <div class="stage-main-view">
+        <div class="stage-ambient-word" id="super-backdrop-word">ELEPHANT</div>
+        
+        <div class="stage-controls-bar">
+          <button class="tool-btn active" id="btn-toggle-living" title="Toggle Stop-Motion Loop">
+            <span class="indicator-dot"></span>
+            <span class="status-text">Living Motion</span>
+          </button>
+          <button class="tool-btn active" id="btn-toggle-bg" title="Toggle SAM Transparent Background">
+            <span>✂️</span>
+            <span class="status-text">Transparent (SAM)</span>
+          </button>
+        </div>
+
+        <div class="stage-animal-wrap" id="animal-stage">
+          <!-- Animated Frames Injected by JS -->
+        </div>
+      </div>
+
+      <!-- Stage Bottom Details -->
+      <div class="stage-details">
+        <div class="animal-text-meta">
+          <h2 id="animal-display-name">Majestic Elephant</h2>
+          <div class="latin" id="animal-scientific-name">Loxodonta africana</div>
+          <div class="animal-prompt-badge" id="animal-prompt-badge">
+            Prompt: "A majestic elephant walking forward..."
+          </div>
+        </div>
+
+        <div class="stage-nav-group">
+          <button class="nav-circle-btn" id="btn-prev" aria-label="Previous animal">&#8592;</button>
+          <span style="font-family: var(--font-mono); font-size: 13px; color: var(--text-muted);" id="counter-display">01 / 10</span>
+          <button class="nav-circle-btn" id="btn-next" aria-label="Next animal">&#8594;</button>
+        </div>
+      </div>
+
+      <!-- 10 Animals Thumbnail Strip -->
+      <div class="thumbs-strip" id="thumbs-strip">
+        <!-- Injected by JS -->
+      </div>
+    </div>
+  </section>
+
+  <!-- Wildlife Gallery Grid (10 Animals) -->
+  <section class="section" id="gallery">
+    <h2 class="sec-title">Wildlife Living Gallery</h2>
+    <p class="sec-desc">
+      Each subject is stylized directly from a single reference image using Content-Orthogonal Residual Projection. Hover over any card to view its living stop-motion sketch sequence.
+    </p>
+
+    <div class="gallery-grid" id="gallery-grid">
+      <!-- Injected by JS -->
+    </div>
+  </section>
+
+  <!-- Technical Method Pipeline -->
+  <section class="section" id="method">
+    <h2 class="sec-title">Method Overview</h2>
+    <p class="sec-desc">
+      ChronosArt introduces an orthogonal residual decomposition pipeline built upon Visual Autoregressive (Infinity-2B) modeling, operating completely training-free in ~2.0s inference latency.
+    </p>
+
+    <div class="pipeline-grid">
+      <div class="pipe-card">
+        <div class="pipe-step-num">STEP 01</div>
+        <div class="pipe-title">Scale-wise AR Prediction</div>
+        <div class="pipe-text">
+          Flan-T5 encodes prompt semantics, while Infinity-2B predicts coarse-to-fine residual feature maps across 10 scales ($1\times 1 \to 64\times 64$).
+        </div>
+      </div>
+
+      <div class="pipe-card">
+        <div class="pipe-step-num">STEP 02</div>
+        <div class="pipe-title">Content-Orthogonal Residual Projection</div>
+        <div class="pipe-text">
+          Orthogonal projector $\mathbf{P}_s^{\perp} = \mathbf{I} - \mathbf{B}_s (\mathbf{B}_s)^\top$ strips content subspace directions from style residuals, preventing leakage.
+        </div>
+      </div>
+
+      <div class="pipe-card">
+        <div class="pipe-step-num">STEP 03</div>
+        <div class="pipe-title">Safe Stochasticity</div>
+        <div class="pipe-text">
+          Low temperature $\tau_{\text{coarse}} = 0.15$ anchors anatomy, while $\tau_{\text{fine}} \in [0.85, 1.25]$ samples distinct micro-stroke textures per seed.
+        </div>
+      </div>
+
+      <div class="pipe-card">
+        <div class="pipe-step-num">STEP 04</div>
+        <div class="pipe-title">SAM / Rembg Segmentation</div>
+        <div class="pipe-text">
+          High-precision matting removes canvas backgrounds, exporting lightweight transparent WebP assets (~40KB) for instant web rendering.
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- BibTeX Citation -->
+  <section class="section" id="bibtex">
+    <h2 class="sec-title">BibTeX Citation</h2>
+    <div class="bibtex-box">
+      <button type="button" class="copy-btn" id="copy-bib-btn">Copy</button>
+      <pre class="bibtex-code" id="bib-code">@article{nguyen2026chronosart,
+  title={ChronosArt: Training-Free Style Personalization via Orthogonal Feature Projection in Visual Autoregressive Models},
+  author={Nguyen, Minh-Nhat},
+  journal={arXiv preprint},
+  year={2026}
+}</pre>
+    </div>
+  </section>
+
+  <!-- Clean Footer -->
+  <footer class="footer">
+    <p>
+      ZooSketch Project &bull; Powered by <strong>ChronosArt</strong> &bull; FIT, US-VNUHCM
+    </p>
+  </footer>
+
+  <script src="js/app.js"></script>
+</body>
+</html>

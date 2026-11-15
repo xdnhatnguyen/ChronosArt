@@ -1,0 +1,975 @@
+from __future__ import annotations
+
+import gc
+import types
+from contextlib import nullcontext
+from pathlib import Path
+
+import torch
+import torch.nn.functional as F
+import torchvision
+from PIL import Image, ImageOps
+
+from .config import ExperimentConfig, ModelBundle
+
+
+CrossAttnBlock = None
+apply_rotary_emb = None
+slow_attn = None
+sample_with_top_k_top_p_also_inplace_modifying_logits_ = None
+
+
+def _load_infinity_symbols():
+    global CrossAttnBlock
+    global apply_rotary_emb
+    global slow_attn
+    global sample_with_top_k_top_p_also_inplace_modifying_logits_
+
+    if CrossAttnBlock is not None:
+        return
+
+    from infinity.models.basic import CrossAttnBlock as _CrossAttnBlock
+    from infinity.models.basic import apply_rotary_emb as _apply_rotary_emb
+    from infinity.models.basic import slow_attn as _slow_attn
+    from infinity.models.infinity import (
+        sample_with_top_k_top_p_also_inplace_modifying_logits_ as _sample_with_top_k_top_p,
+    )
+
+    CrossAttnBlock = _CrossAttnBlock
+    apply_rotary_emb = _apply_rotary_emb
+    slow_attn = _slow_attn
+    sample_with_top_k_top_p_also_inplace_modifying_logits_ = _sample_with_top_k_top_p
+
+
+def phi_svd(feature, alpha: float = 1.0, rank: int | None = None):
+    """Paper Eq. (5), generalized from VAR [B,C,H,W] to Infinity [B,C,T,H,W]."""
+    original_dtype = feature.dtype
+    batch, channels = feature.shape[:2]
+    spatial_shape = feature.shape[2:]
+    outputs = []
+
+    for batch_id in range(batch):
+        matrix = feature[batch_id].detach().float().reshape(channels, -1)
+        u, singular_values, vh = torch.linalg.svd(matrix, full_matrices=False)
+        available_rank = singular_values.numel()
+        used_rank = available_rank if rank is None else min(int(rank), available_rank)
+        weights = torch.exp(-float(alpha) * torch.arange(used_rank, device=matrix.device, dtype=matrix.dtype))
+        weighted_s = singular_values[:used_rank] * weights
+        reconstructed = (u[:, :used_rank] * weighted_s.unsqueeze(0)) @ vh[:used_rank]
+        outputs.append(reconstructed.reshape(channels, *spatial_shape))
+
+    return torch.stack(outputs).to(dtype=original_dtype)
+
+
+def spherical_geodesic_update(x, delta, strength: float = 1.0, eps: float = 1e-8):
+    """Geodesic flow on sphere S^{C-1} preserving token feature norms.
+    
+    Instead of Euclidean addition x + strength * delta which inflates feature norms
+    and causes out-of-distribution BSQ bit-flips, this projects delta onto the
+    tangent space T_x S^{C-1} and performs an exact geodesic rotation along the great circle:
+        x_new = R * (cos(theta) * u + sin(theta) * v_perp)
+    where R = ||x||, u = x / R, v_perp = delta_perp / ||delta_perp||,
+    and theta = strength * atan2(||delta_perp||, R).
+    """
+    orig_dtype = x.dtype
+    x_f = x.float()
+    delta_f = delta.float()
+    
+    # Treat channels (dim 1) as the vector space for each spatial token
+    norm_x = torch.norm(x_f, p=2, dim=1, keepdim=True).clamp_min(eps)
+    u = x_f / norm_x  # unit vector on S^{C-1}
+    
+    # Project delta onto tangent space of u: delta_perp = delta - <delta, u> * u
+    inner_prod = (delta_f * u).sum(dim=1, keepdim=True)
+    delta_perp = delta_f - inner_prod * u
+    norm_delta_perp = torch.norm(delta_perp, p=2, dim=1, keepdim=True).clamp_min(eps)
+    v_perp = delta_perp / norm_delta_perp  # unit tangent vector orthogonal to u
+    
+    # Geodesic rotation angle
+    theta = float(strength) * torch.atan2(norm_delta_perp, norm_x)
+    
+    # Exact spherical rotation
+    x_rotated = norm_x * (torch.cos(theta) * u + torch.sin(theta) * v_perp)
+    return x_rotated.to(orig_dtype)
+
+
+def compute_boundary_gradient_mask(feature, gamma: float = 0.5, eps: float = 1e-8):
+    """Bilateral boundary protection mask based on spatial token gradients.
+    
+    Suppresses style injection at sharp semantic transitions/edges to prevent
+    boundary haloing and fuzzy object contours.
+    """
+    orig_dim = feature.ndim
+    if orig_dim == 5:
+        x = feature.squeeze(2).float()
+    else:
+        x = feature.float()
+
+    diff_y = torch.zeros_like(x)
+    diff_x = torch.zeros_like(x)
+    diff_y[:, :, 1:] = x[:, :, 1:] - x[:, :, :-1]
+    diff_x[:, :, :, 1:] = x[:, :, :, 1:] - x[:, :, :, :-1]
+    grad_mag = torch.sqrt((diff_y ** 2 + diff_x ** 2).sum(dim=1, keepdim=True) + eps)
+    min_g = grad_mag.amin(dim=(-2, -1), keepdim=True)
+    max_g = grad_mag.amax(dim=(-2, -1), keepdim=True)
+    norm_g = (grad_mag - min_g) / (max_g - min_g + eps)
+    mask = 1.0 - float(gamma) * norm_g
+    if orig_dim == 5:
+        mask = mask.unsqueeze(2)
+    return mask.to(feature.dtype)
+
+
+def fourier_phase_amplitude_blend(gen_feat, style_feat, content_feat=None, kappa: float = 0.20):
+    """Spectral Fourier texture injection preserving 100% geometric phase.
+    
+    Locks the Fourier phase to content geometry while blending Fourier
+    amplitude with the style spectrum to transfer authentic fine-grained textures.
+    """
+    orig_dtype = gen_feat.dtype
+    orig_dim = gen_feat.ndim
+    if orig_dim == 5:
+        g = gen_feat.squeeze(2).float()
+        s = style_feat.squeeze(2).float()
+        c = content_feat.squeeze(2).float() if content_feat is not None else g
+    else:
+        g = gen_feat.float()
+        s = style_feat.float()
+        c = content_feat.float() if content_feat is not None else g
+
+    f_gen = torch.fft.rfft2(g, dim=(-2, -1))
+    f_sty = torch.fft.rfft2(s, dim=(-2, -1))
+    f_con = torch.fft.rfft2(c, dim=(-2, -1))
+
+    amp_gen = torch.abs(f_gen)
+    amp_sty = torch.abs(f_sty)
+    phase = torch.angle(f_con)
+
+    amp_blended = (1.0 - float(kappa)) * amp_gen + float(kappa) * amp_sty
+    f_new = torch.polar(amp_blended, phase)
+    out = torch.fft.irfft2(f_new, s=g.shape[-2:], dim=(-2, -1))
+
+    if orig_dim == 5:
+        out = out.unsqueeze(2)
+    return out.to(orig_dtype)
+
+
+def apply_style_token_jitter(
+    style_feat: torch.Tensor, rng: torch.Generator | None = None, dropout: float = 0.15
+) -> torch.Tensor:
+    """Stochastic fine-scale style token jittering and spatial permutation.
+
+    Exploits spatial stationarity of fine-scale style textures by applying
+    random spatial cyclic roll and stochastic 15% token dropout with variance rescaling.
+    """
+    orig_dim = style_feat.ndim
+    if orig_dim == 5:
+        s = style_feat.squeeze(2).clone()
+    else:
+        s = style_feat.clone()
+
+    b, c, h, w = s.shape
+    dev = s.device
+    gen_dev = rng.device if rng is not None else dev
+
+    # 1. Random spatial roll (translation invariance of stationary textures)
+    if rng is not None:
+        shift_y = int(torch.randint(0, h, (1,), generator=rng, device=gen_dev).item())
+        shift_x = int(torch.randint(0, w, (1,), generator=rng, device=gen_dev).item())
+    else:
+        shift_y = int(torch.randint(0, h, (1,)).item())
+        shift_x = int(torch.randint(0, w, (1,)).item())
+
+    s_rolled = torch.roll(s, shifts=(shift_y, shift_x), dims=(-2, -1))
+
+    # 2. Random token dropout with expectation preservation
+    if dropout > 0.0:
+        if rng is not None:
+            rand_mask = torch.rand((b, 1, h, w), generator=rng, device=gen_dev).to(dev)
+        else:
+            rand_mask = torch.rand((b, 1, h, w), device=dev)
+        drop_mask = (rand_mask >= float(dropout)).to(s.dtype)
+        s_rolled = s_rolled * drop_mask / (1.0 - float(dropout))
+
+    if orig_dim == 5:
+        s_rolled = s_rolled.unsqueeze(2)
+    return s_rolled
+
+
+def resize_mask_to_feature(mask, feature):
+    if mask is None:
+        return None
+
+    mask = mask.detach().float().to(device=feature.device)
+    while mask.ndim > 2 and mask.shape[0] == 1:
+        mask = mask.squeeze(0)
+    if mask.ndim != 2:
+        raise ValueError(f"Expected a 2D object mask after squeezing singleton dimensions, got {tuple(mask.shape)}.")
+
+    mask = mask.unsqueeze(0).unsqueeze(0)
+    mask = F.interpolate(mask, size=feature.shape[-2:], mode="bilinear", align_corners=False)
+    if feature.ndim == 5:
+        mask = mask.unsqueeze(2)
+    while mask.ndim < feature.ndim:
+        mask = mask.unsqueeze(0)
+    return mask.to(dtype=feature.dtype).clamp(0, 1)
+
+
+def principal_feature_blend(
+    generation_feature,
+    style_feature,
+    alpha=1.0,
+    rank=None,
+    strength=1.0,
+    mask=None,
+    background_strength=0.0,
+    use_geodesic=False,
+    use_gradient_mask=False,
+    gradient_mask_gamma=0.5,
+):
+    """PFB with optional strength multiplier; strength=1 is the paper method."""
+    if generation_feature.shape != style_feature.shape:
+        raise ValueError(f"PFB shape mismatch: {generation_feature.shape} vs {style_feature.shape}")
+    style_feature = style_feature.to(generation_feature)
+    style_component = phi_svd(style_feature, alpha=alpha, rank=rank)
+    generation_component = phi_svd(generation_feature, alpha=alpha, rank=rank)
+    delta = style_component - generation_component
+    if mask is not None:
+        feature_mask = resize_mask_to_feature(mask, generation_feature)
+        mask_weight = float(background_strength) + (1.0 - float(background_strength)) * feature_mask
+        delta = delta * mask_weight
+    if use_gradient_mask:
+        grad_mask = compute_boundary_gradient_mask(generation_feature, gamma=gradient_mask_gamma)
+        delta = delta * grad_mask
+    if use_geodesic:
+        return spherical_geodesic_update(generation_feature, delta, strength=strength)
+    return generation_feature + float(strength) * delta
+
+
+def principal_feature_blend_regions(
+    generation_feature,
+    style_feature,
+    *,
+    target_mask,
+    style_mask,
+    alpha=1.0,
+    foreground_rank=None,
+    background_rank=None,
+    foreground_strength=1.0,
+    background_strength=0.0,
+):
+    """Apply foreground style to target foreground and background style to target background."""
+    if generation_feature.shape != style_feature.shape:
+        raise ValueError(f"PFB shape mismatch: {generation_feature.shape} vs {style_feature.shape}")
+
+    style_feature = style_feature.to(generation_feature)
+    target_foreground = resize_mask_to_feature(target_mask, generation_feature)
+    target_background = 1.0 - target_foreground
+
+    if style_mask is None:
+        style_foreground = style_feature
+        style_background = style_feature
+    else:
+        style_foreground_mask = resize_mask_to_feature(style_mask, style_feature)
+        style_foreground = style_feature * style_foreground_mask
+        style_background = style_feature * (1.0 - style_foreground_mask)
+
+    generation_foreground = generation_feature * target_foreground
+    generation_background = generation_feature * target_background
+
+    foreground_delta = phi_svd(style_foreground, alpha=alpha, rank=foreground_rank) - phi_svd(
+        generation_foreground, alpha=alpha, rank=foreground_rank
+    )
+    background_delta = phi_svd(style_background, alpha=alpha, rank=background_rank) - phi_svd(
+        generation_background, alpha=alpha, rank=background_rank
+    )
+
+    return (
+        generation_feature
+        + float(foreground_strength) * target_foreground * foreground_delta
+        + float(background_strength) * target_background * background_delta
+    )
+
+
+def apply_feature_edit(
+    generation_feature,
+    style_feature,
+    mode,
+    alpha=1.0,
+    rank=None,
+    strength=1.0,
+    mask=None,
+    background_strength=0.0,
+    style_mask=None,
+    split_style_regions=False,
+    foreground_rank=None,
+    background_rank=None,
+    use_geodesic=False,
+    use_gradient_mask=False,
+    gradient_mask_gamma=0.5,
+):
+    if mode == "none":
+        return generation_feature
+    if mode == "replace":
+        return style_feature.to(generation_feature)
+    if mode == "pfb":
+        if split_style_regions and mask is not None:
+            return principal_feature_blend_regions(
+                generation_feature,
+                style_feature,
+                target_mask=mask,
+                style_mask=style_mask,
+                alpha=alpha,
+                foreground_rank=rank if foreground_rank is None else foreground_rank,
+                background_rank=rank if background_rank is None else background_rank,
+                foreground_strength=strength,
+                background_strength=background_strength,
+            )
+        return principal_feature_blend(
+            generation_feature,
+            style_feature,
+            alpha=alpha,
+            rank=rank,
+            strength=strength,
+            mask=mask,
+            background_strength=background_strength,
+            use_geodesic=use_geodesic,
+            use_gradient_mask=use_gradient_mask,
+            gradient_mask_gamma=gradient_mask_gamma,
+        )
+    raise ValueError(f"Unknown edit mode: {mode}")
+
+
+class SACController:
+    def __init__(self, base_batch=1):
+        self.base_batch = base_batch
+        self.active = False
+        self.sac_strength = 1.0
+        self.sac_head_ratio = 1.0
+        self.total_calls = 0
+        self.max_q_copy_error = 0.0
+        self.max_k_copy_error = 0.0
+
+    def reset_statistics(self):
+        self.total_calls = 0
+        self.max_q_copy_error = 0.0
+        self.max_k_copy_error = 0.0
+
+
+def _infinity_sac_attention_forward(
+    attention,
+    x,
+    attn_bias_or_two_vector,
+    attn_fn=None,
+    scale_schedule=None,
+    rope2d_freqs_grid=None,
+    scale_ind=0,
+):
+    _load_infinity_symbols()
+    batch4, length, channels = x.shape
+    if attention.using_flash:
+        raise RuntimeError("SAC patch expects customized_flash_attn=False.")
+
+    qkv = attention.mat_qkv(x)
+    qkv = qkv + torch.cat((attention.q_bias, attention.zero_k_bias, attention.v_bias)).to(qkv)
+    qkv = qkv.view(batch4, length, 3, attention.num_heads, attention.head_dim)
+    q, k, v = qkv.permute(2, 0, 3, 1, 4).unbind(dim=0)
+
+    if attention.cos_attn:
+        scale_mul = attention.scale_mul_1H11.clamp_max(attention.max_scale_mul).exp()
+        q = F.normalize(q, dim=-1, eps=1e-12).mul(scale_mul).contiguous()
+        k = F.normalize(k, dim=-1, eps=1e-12).contiguous()
+        v = v.contiguous()
+    else:
+        q, k, v = q.contiguous(), k.contiguous(), v.contiguous()
+
+    if rope2d_freqs_grid is not None:
+        q, k = apply_rotary_emb(
+            q,
+            k,
+            scale_schedule,
+            rope2d_freqs_grid,
+            attention.pad_to_multiplier,
+            attention.rope2d_normalized_by_hw,
+            scale_ind,
+        )
+
+    controller = getattr(attention, "_paper_sac_controller", None)
+    if controller is not None and controller.active:
+        b = controller.base_batch
+        if batch4 != 4 * b:
+            raise RuntimeError(f"SAC expected joint batch {4 * b}, received {batch4}.")
+
+        q_content = torch.cat((q[:b], q[:b], q[2 * b : 3 * b], q[2 * b : 3 * b]), dim=0)
+        k_content = torch.cat((k[:b], k[:b], k[2 * b : 3 * b], k[2 * b : 3 * b]), dim=0)
+
+        if controller.sac_head_ratio < 1.0:
+            num_heads = q.shape[1]
+            k_heads = max(1, int(round(num_heads * controller.sac_head_ratio)))
+            q_gen = q[b : 2 * b].flatten(2)
+            q_con = q[:b].flatten(2)
+            sim = torch.cosine_similarity(q_gen, q_con, dim=-1).mean(dim=0)
+            _, top_head_indices = torch.topk(sim, k_heads, largest=True)
+            head_mask = torch.zeros(num_heads, dtype=torch.bool, device=q.device)
+            head_mask[top_head_indices] = True
+
+            s = float(controller.sac_strength)
+            if s >= 1.0:
+                q[b : 2 * b, head_mask] = q_content[b : 2 * b, head_mask]
+                k[b : 2 * b, head_mask] = k_content[b : 2 * b, head_mask]
+                q[3 * b : 4 * b, head_mask] = q_content[3 * b : 4 * b, head_mask]
+                k[3 * b : 4 * b, head_mask] = k_content[3 * b : 4 * b, head_mask]
+            else:
+                q[b : 2 * b, head_mask] = q[b : 2 * b, head_mask] + s * (q_content[b : 2 * b, head_mask] - q[b : 2 * b, head_mask])
+                k[b : 2 * b, head_mask] = k[b : 2 * b, head_mask] + s * (k_content[b : 2 * b, head_mask] - k[b : 2 * b, head_mask])
+                q[3 * b : 4 * b, head_mask] = q[3 * b : 4 * b, head_mask] + s * (q_content[3 * b : 4 * b, head_mask] - q[3 * b : 4 * b, head_mask])
+                k[3 * b : 4 * b, head_mask] = k[3 * b : 4 * b, head_mask] + s * (k_content[3 * b : 4 * b, head_mask] - k[3 * b : 4 * b, head_mask])
+        else:
+            if controller.sac_strength >= 1.0:
+                q, k = q_content, k_content
+            else:
+                q = q + float(controller.sac_strength) * (q_content - q)
+                k = k + float(controller.sac_strength) * (k_content - k)
+
+        controller.total_calls += 1
+        controller.max_q_copy_error = max(
+            controller.max_q_copy_error,
+            float((q[b : 2 * b] - q[:b]).abs().max().detach().cpu()),
+            float((q[3 * b : 4 * b] - q[2 * b : 3 * b]).abs().max().detach().cpu()),
+        )
+        controller.max_k_copy_error = max(
+            controller.max_k_copy_error,
+            float((k[b : 2 * b] - k[:b]).abs().max().detach().cpu()),
+            float((k[3 * b : 4 * b] - k[2 * b : 3 * b]).abs().max().detach().cpu()),
+        )
+
+    if attention.caching:
+        if attention.cached_k is None:
+            attention.cached_k, attention.cached_v = k, v
+        else:
+            attention.cached_k = torch.cat((attention.cached_k, k), dim=2)
+            attention.cached_v = torch.cat((attention.cached_v, v), dim=2)
+        k, v = attention.cached_k, attention.cached_v
+
+    if attention.use_flex_attn and attn_fn is not None:
+        output = attn_fn(q, k, v, scale=attention.scale).transpose(1, 2).reshape(batch4, length, channels)
+    else:
+        output = slow_attn(
+            query=q.to(v.dtype),
+            key=k.to(v.dtype),
+            value=v,
+            scale=attention.scale,
+            attn_mask=attn_bias_or_two_vector,
+            dropout_p=0,
+        ).transpose(1, 2).reshape(batch4, length, channels)
+    return attention.proj_drop(attention.proj(output))
+
+
+class PaperSACPatch:
+    def __init__(self, model, controller):
+        self.model = model
+        self.controller = controller
+        self.original_forwards = []
+
+    def __enter__(self):
+        _load_infinity_symbols()
+        for block in self.model.unregistered_blocks:
+            if not isinstance(block, CrossAttnBlock):
+                continue
+            attention = block.sa
+            self.original_forwards.append((attention, attention.forward))
+            attention._paper_sac_controller = self.controller
+            attention.forward = types.MethodType(_infinity_sac_attention_forward, attention)
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback):
+        for attention, original_forward in self.original_forwards:
+            attention.forward = original_forward
+            if hasattr(attention, "_paper_sac_controller"):
+                delattr(attention, "_paper_sac_controller")
+        return False
+
+
+class StyleTransferEngine:
+    def __init__(self, bundle: ModelBundle, config: ExperimentConfig):
+        if not bundle.scale_schedule:
+            raise ValueError("ModelBundle.scale_schedule must be populated before creating StyleTransferEngine.")
+        self.bundle = bundle
+        self.config = config
+        self.device = bundle.device
+        self.text_tokenizer = bundle.text_tokenizer
+        self.text_encoder = bundle.text_encoder
+        self.vae = bundle.vae
+        self.model = bundle.infinity_model
+        self.scale_schedule = bundle.scale_schedule
+        self.patch_nums = tuple(h for (_, h, _) in self.scale_schedule)
+        self.style_image_cache = {}
+        self.style_feature_cache = {}
+        if not hasattr(self.vae.quantizer, "lfq"):
+            self.vae.quantizer.lfq = self.vae.quantizer.bsq
+        print("Backend: Infinity-2B GGUF | device:", self.device, "| image size:", (512, 512))
+
+    def load_reference_image(self, path, size=512):
+        image = Image.open(path).convert("RGB")
+        image = ImageOps.fit(image, (size, size), method=Image.Resampling.LANCZOS, centering=(0.5, 0.5))
+        image_01 = torchvision.transforms.functional.to_tensor(image).unsqueeze(0).to(self.device)
+        return image_01.mul(2).sub(1), image_01, image
+
+    @torch.no_grad()
+    def extract_multiscale_style_features(self, image_m11):
+        with torch.amp.autocast("cuda", enabled=False):
+            _, _, _, all_bit_indices, _, _ = self.vae.encode(image_m11.float(), scale_schedule=self.scale_schedule)
+
+        summed_codes = None
+        features = []
+        final_size = self.scale_schedule[-1]
+        num_scales = len(self.scale_schedule)
+        for step_id, bit_indices in enumerate(all_bit_indices):
+            codes = self.vae.quantizer.lfq.indices_to_codes(bit_indices, label_type="bit_label")
+            if step_id != num_scales - 1:
+                codes = F.interpolate(codes, size=final_size, mode=self.vae.quantizer.z_interplote_up)
+            summed_codes = codes if summed_codes is None else summed_codes + codes
+            features.append(summed_codes.detach().float().clone())
+        assert len(features) == len(self.patch_nums)
+        return features
+
+    def get_style_image(self, style_path):
+        key = str(Path(style_path))
+        if key not in self.style_image_cache:
+            _, style_01, _ = self.load_reference_image(style_path)
+            self.style_image_cache[key] = style_01.detach().float().cpu()
+        return self.style_image_cache[key]
+
+    def get_style_features(self, style_path):
+        key = str(Path(style_path))
+        if key not in self.style_feature_cache:
+            style_m11, _, _ = self.load_reference_image(style_path)
+            with torch.inference_mode():
+                features = self.extract_multiscale_style_features(style_m11)
+            self.style_feature_cache[key] = [feature.detach().float().cpu() for feature in features]
+            del style_m11, features
+            gc.collect()
+            torch.cuda.empty_cache()
+        return [feature.to(self.device) for feature in self.style_feature_cache[key]]
+
+    def encode_prompts(self, prompts):
+        if isinstance(prompts, str):
+            prompts = [prompts]
+        tokens = self.text_tokenizer(
+            text=list(prompts), max_length=512, padding="max_length", truncation=True, return_tensors="pt"
+        )
+        input_ids = tokens.input_ids.to(self.device, non_blocking=True)
+        mask = tokens.attention_mask.to(self.device, non_blocking=True)
+        with torch.no_grad():
+            text_features = self.text_encoder(input_ids=input_ids, attention_mask=mask)["last_hidden_state"].float()
+        lens = mask.sum(dim=-1).tolist()
+        cu_seqlens_k = F.pad(mask.sum(dim=-1).to(dtype=torch.int32).cumsum_(0), (1, 0))
+        max_seqlen_k = max(lens)
+        kv_compact = []
+        for len_i, feat_i in zip(lens, text_features.unbind(0)):
+            kv_compact.append(feat_i[:len_i])
+        kv_compact = torch.cat(kv_compact, dim=0)
+        return kv_compact, lens, cu_seqlens_k, max_seqlen_k
+
+    def _sample_bit_labels(self, logits_bl2d, rng, top_k, top_p):
+        _load_infinity_symbols()
+        batch, seq_len = logits_bl2d.shape[:2]
+        logits = logits_bl2d.reshape(batch, -1, 2).clone()
+        sampled = sample_with_top_k_top_p_also_inplace_modifying_logits_(
+            logits, rng=rng, top_k=top_k, top_p=top_p, num_samples=1
+        )[:, :, 0]
+        return sampled.reshape(batch, seq_len, -1)
+
+    def _bit_labels_to_codes(self, idx_bld, pn):
+        idx = idx_bld.reshape(idx_bld.shape[0], pn[1], pn[2], -1)
+        idx = idx.unsqueeze(1)
+        return self.vae.quantizer.lfq.indices_to_codes(idx, label_type="bit_label")
+
+    def _next_raw_from_summed_codes(self, summed_codes, next_scale):
+        last_stage = F.interpolate(summed_codes, size=next_scale, mode=self.vae.quantizer.z_interplote_up)
+        last_stage = last_stage.squeeze(-3)
+        if self.model.apply_spatial_patchify:
+            last_stage = torch.nn.functional.pixel_unshuffle(last_stage, 2)
+        last_stage = last_stage.reshape(*last_stage.shape[:2], -1).permute(0, 2, 1)
+        return last_stage
+
+    def _decode_summed_codes_to_image_01(self, summed_codes):
+        image = self.vae.decode(summed_codes.squeeze(-3))
+        return image.add(1).mul(0.5).clamp(0, 1)
+
+    @torch.no_grad()
+    def paper_dual_path_generate(
+        self,
+        prompt,
+        style_features,
+        *,
+        seed=None,
+        cfg=None,
+        tau=None,
+        top_k=None,
+        top_p=None,
+        pfb_feature_index=None,
+        pfb_feature_indices=None,
+        sac_prediction_start=None,
+        edit_mode="pfb",
+        alpha=None,
+        rank=None,
+        style_strength=1.0,
+        style_decay=1.0,
+        style_strength_by_step=None,
+        feature_masks_by_step=None,
+        style_masks_by_step=None,
+        masked_background_strength=0.0,
+        split_style_regions=False,
+        foreground_rank=None,
+        background_rank=None,
+        sac_strength=1.0,
+        enable_sac=True,
+        use_geodesic=False,
+        sac_head_ratio=1.0,
+        use_gradient_mask=False,
+        gradient_mask_gamma=0.5,
+        use_fourier_phase=False,
+        fourier_scales=None,
+        fourier_kappa=0.20,
+        use_scale_scheduled_tau=False,
+        tau_coarse=0.15,
+        tau_fine_min=0.85,
+        tau_fine_max=1.25,
+        top_p_fine=0.92,
+        use_style_token_jitter=False,
+        jitter_start_step=5,
+        jitter_dropout=0.15,
+    ):
+        cfg = self.config.cfg if cfg is None else cfg
+        tau = self.config.tau if tau is None else tau
+        top_k = self.config.top_k if top_k is None else top_k
+        top_p = self.config.top_p if top_p is None else top_p
+        seed = self.config.seed if seed is None else seed
+        alpha = self.config.paper_alpha if alpha is None else alpha
+        pfb_feature_index = self.config.paper_pfb_feature_index if pfb_feature_index is None else pfb_feature_index
+        sac_prediction_start = (
+            self.config.paper_sac_prediction_start if sac_prediction_start is None else sac_prediction_start
+        )
+
+        if cfg < 1.0:
+            raise ValueError("CFG must be >= 1.0 for this dual-stream experiment.")
+        if pfb_feature_indices is None:
+            pfb_feature_indices = [pfb_feature_index]
+        else:
+            pfb_feature_indices = sorted(set(int(index) for index in pfb_feature_indices))
+        if not pfb_feature_indices or any(index < 0 or index >= len(self.scale_schedule) for index in pfb_feature_indices):
+            raise ValueError("Invalid PFB feature indices.")
+        if style_strength_by_step is not None:
+            style_strength_by_step = {int(step): float(strength) for step, strength in style_strength_by_step.items()}
+            expected_steps = set(pfb_feature_indices)
+            if set(style_strength_by_step) != expected_steps or any(
+                strength < 0 for strength in style_strength_by_step.values()
+            ):
+                raise ValueError("style_strength_by_step must provide one non-negative strength for every PFB scale.")
+        if feature_masks_by_step is None:
+            feature_masks_by_step = {}
+        else:
+            feature_masks_by_step = {int(step): mask for step, mask in feature_masks_by_step.items()}
+            unexpected_mask_steps = set(feature_masks_by_step) - set(pfb_feature_indices)
+            if unexpected_mask_steps:
+                raise ValueError(f"Mask steps must also be PFB steps, got extra steps: {sorted(unexpected_mask_steps)}")
+        if style_masks_by_step is None:
+            style_masks_by_step = {}
+        else:
+            style_masks_by_step = {int(step): mask for step, mask in style_masks_by_step.items()}
+            unexpected_style_mask_steps = set(style_masks_by_step) - set(pfb_feature_indices)
+            if unexpected_style_mask_steps:
+                raise ValueError(
+                    f"Style-mask steps must also be PFB steps, got extra steps: {sorted(unexpected_style_mask_steps)}"
+                )
+        if enable_sac and not 0 <= sac_prediction_start < len(self.scale_schedule):
+            raise ValueError("Invalid SAC prediction start.")
+
+        self.model.eval()
+        base_batch = 1
+        condition_batch = 2
+        content_rng = torch.Generator(device=self.device).manual_seed(seed)
+        generation_rng = torch.Generator(device=self.device).manual_seed(seed)
+
+        kv_compact, lens, cu_seqlens_k, max_seqlen_k = self.encode_prompts([prompt, prompt])
+        kv_compact_un = kv_compact.clone()
+        total = 0
+        for le in lens:
+            kv_compact_un[total : total + le] = self.model.cfg_uncond[:le]
+            total += le
+        kv_compact = torch.cat((kv_compact, kv_compact_un), dim=0)
+        cu_seqlens_k = torch.cat((cu_seqlens_k, cu_seqlens_k[1:] + cu_seqlens_k[-1]), dim=0)
+        bs = 4
+
+        kv_compact = self.model.text_norm(kv_compact)
+        sos = cond_bd = self.model.text_proj_for_sos((kv_compact, cu_seqlens_k, max_seqlen_k))
+        kv_compact = self.model.text_proj_for_ca(kv_compact)
+        ca_kv = kv_compact, cu_seqlens_k, max_seqlen_k
+        last_stage = sos.unsqueeze(1).expand(bs, 1, -1) + self.model.pos_start.expand(bs, 1, -1)
+
+        with torch.amp.autocast("cuda", enabled=False):
+            cond_bd_or_gss = self.model.shared_ada_lin(cond_bd.float()).float().contiguous()
+
+        final_size = self.scale_schedule[-1]
+        content_summed = last_stage.new_zeros(base_batch, self.model.d_vae, *final_size)
+        generation_summed = torch.zeros_like(content_summed)
+        content_trace, generation_trace = [], []
+
+        controller = SACController(base_batch)
+        controller.sac_strength = float(sac_strength)
+        controller.sac_head_ratio = float(sac_head_ratio)
+        controller.reset_statistics()
+
+        for block in self.model.unregistered_blocks:
+            block.sa.kv_caching(True)
+
+        pre_pfb_max_difference = 0.0
+        pfb_relative_change_by_step = {}
+        try:
+            with torch.amp.autocast("cuda", enabled=True, dtype=torch.bfloat16, cache_enabled=True):
+                sac_context = PaperSACPatch(self.model, controller) if enable_sac else nullcontext()
+                with sac_context:
+                    for step_id, pn in enumerate(self.scale_schedule):
+                        controller.active = enable_sac and step_id >= sac_prediction_start
+                        need_to_pad = 0
+                        attn_fn = None
+                        if self.model.use_flex_attn:
+                            attn_fn = self.model.attn_fn_compile_dict.get(tuple(self.scale_schedule[: step_id + 1]), None)
+
+                        for block_idx, block_chunk in enumerate(self.model.block_chunks):
+                            if self.model.add_lvl_embeding_only_first_block and block_idx == 0:
+                                last_stage = self.model.add_lvl_embeding(
+                                    last_stage, step_id, self.scale_schedule, need_to_pad=need_to_pad
+                                )
+                            if not self.model.add_lvl_embeding_only_first_block:
+                                last_stage = self.model.add_lvl_embeding(
+                                    last_stage, step_id, self.scale_schedule, need_to_pad=need_to_pad
+                                )
+
+                            for block in block_chunk.module:
+                                last_stage = block(
+                                    x=last_stage,
+                                    cond_BD=cond_bd_or_gss,
+                                    ca_kv=ca_kv,
+                                    attn_bias_or_two_vector=None,
+                                    attn_fn=attn_fn,
+                                    scale_schedule=self.scale_schedule,
+                                    rope2d_freqs_grid=self.model.rope2d_freqs_grid,
+                                    scale_ind=step_id,
+                                )
+
+                        num_scales = len(self.scale_schedule)
+                        if use_scale_scheduled_tau:
+                            if step_id <= 4:
+                                cur_tau = float(tau_coarse)
+                                cur_top_p = float(top_p)
+                            else:
+                                prog = (step_id - 5) / max(1, num_scales - 1 - 5)
+                                cur_tau = float(tau_fine_min) + prog * float(tau_fine_max - tau_fine_min)
+                                cur_top_p = float(top_p_fine)
+                        else:
+                            cur_tau = float(tau)
+                            cur_top_p = float(top_p)
+
+                        logits = self.model.get_logits(last_stage, cond_bd).mul(1 / float(cur_tau))
+                        logits = float(cfg) * logits[:condition_batch] + (1 - float(cfg)) * logits[condition_batch:]
+                        content_idx = self._sample_bit_labels(logits[:1], content_rng, top_k, cur_top_p)
+                        generation_idx = self._sample_bit_labels(logits[1:2], generation_rng, top_k, cur_top_p)
+
+                        content_codes = self._bit_labels_to_codes(content_idx, pn)
+                        generation_codes = self._bit_labels_to_codes(generation_idx, pn)
+                        if step_id != len(self.scale_schedule) - 1:
+                            content_codes = F.interpolate(
+                                content_codes, size=final_size, mode=self.vae.quantizer.z_interplote_up
+                            )
+                            generation_codes = F.interpolate(
+                                generation_codes, size=final_size, mode=self.vae.quantizer.z_interplote_up
+                            )
+
+                        content_summed = content_summed + content_codes
+                        generation_summed = generation_summed + generation_codes
+
+                        if step_id < min(pfb_feature_indices):
+                            pre_pfb_max_difference = max(
+                                pre_pfb_max_difference,
+                                float((content_summed - generation_summed).abs().max().detach().cpu()),
+                            )
+
+                        if step_id in pfb_feature_indices and edit_mode != "none":
+                            injection_order = pfb_feature_indices.index(step_id)
+                            effective_strength = (
+                                style_strength_by_step[step_id]
+                                if style_strength_by_step is not None
+                                else float(style_strength) * float(style_decay) ** injection_order
+                            )
+                            generation_before_edit = generation_summed.clone()
+                            cur_style_feat = style_features[step_id]
+                            if use_style_token_jitter and step_id >= jitter_start_step:
+                                cur_style_feat = apply_style_token_jitter(
+                                    cur_style_feat, rng=generation_rng, dropout=jitter_dropout
+                                )
+                            generation_summed = apply_feature_edit(
+                                generation_summed,
+                                cur_style_feat,
+                                mode=edit_mode,
+                                alpha=alpha,
+                                rank=rank,
+                                strength=effective_strength,
+                                mask=feature_masks_by_step.get(step_id),
+                                style_mask=style_masks_by_step.get(step_id),
+                                background_strength=masked_background_strength,
+                                split_style_regions=split_style_regions,
+                                foreground_rank=foreground_rank,
+                                background_rank=background_rank,
+                                use_geodesic=use_geodesic,
+                                use_gradient_mask=use_gradient_mask,
+                                gradient_mask_gamma=gradient_mask_gamma,
+                            )
+                            pfb_relative_change_by_step[step_id] = float(
+                                (generation_summed - generation_before_edit).norm()
+                                / generation_before_edit.norm().clamp_min(1e-8)
+                            )
+
+                        if use_fourier_phase and fourier_scales and (step_id in fourier_scales):
+                            if step_id < len(style_features):
+                                sty_fourier = style_features[step_id]
+                                if use_style_token_jitter and step_id >= jitter_start_step:
+                                    sty_fourier = apply_style_token_jitter(
+                                        sty_fourier, rng=generation_rng, dropout=jitter_dropout
+                                    )
+                                generation_summed = fourier_phase_amplitude_blend(
+                                    generation_summed,
+                                    sty_fourier,
+                                    content_feat=content_summed,
+                                    kappa=fourier_kappa,
+                                )
+
+                        content_trace.append(content_summed.detach().float().clone())
+                        generation_trace.append(generation_summed.detach().float().clone())
+
+                        if step_id != len(self.scale_schedule) - 1:
+                            next_scale = self.scale_schedule[step_id + 1]
+                            content_next = self._next_raw_from_summed_codes(content_summed, next_scale)
+                            generation_next = self._next_raw_from_summed_codes(generation_summed, next_scale)
+                            two_streams = torch.cat((content_next, generation_next), dim=0)
+                            last_stage = self.model.word_embed(self.model.norm0_ve(two_streams))
+                            last_stage = last_stage.repeat(bs // condition_batch, 1, 1)
+
+            content_image = self._decode_summed_codes_to_image_01(content_summed)
+            generation_image = self._decode_summed_codes_to_image_01(generation_summed)
+            return {
+                "content_image_01": content_image,
+                "stylized_image_01": generation_image,
+                "content_features": content_trace,
+                "generation_features": generation_trace,
+                "pre_pfb_max_difference": pre_pfb_max_difference,
+                "sac_calls": controller.total_calls,
+                "max_q_copy_error": controller.max_q_copy_error,
+                "max_k_copy_error": controller.max_k_copy_error,
+                "pfb_relative_change_by_step": pfb_relative_change_by_step,
+            }
+        finally:
+            controller.active = False
+            for block in self.model.unregistered_blocks:
+                block.sa.kv_caching(False)
+
+    def generate_content_image(self, prompt, *, seed=None):
+        with torch.inference_mode():
+            result = self.paper_dual_path_generate(prompt, [], edit_mode="none", enable_sac=False, seed=seed)
+        image = result["content_image_01"].detach().float().cpu()
+        del result
+        gc.collect()
+        torch.cuda.empty_cache()
+        return image
+
+    def generate_variant_image(
+        self,
+        prompt,
+        style_path,
+        *,
+        seed=None,
+        pfb_feature_indices,
+        style_decay,
+        style_strength,
+        enable_sac,
+        rank=None,
+        style_strength_by_step=None,
+        feature_masks_by_step=None,
+        style_masks_by_step=None,
+        masked_background_strength=0.0,
+        split_style_regions=False,
+        foreground_rank=None,
+        background_rank=None,
+    ):
+        result = self.generate_variant_result(
+            prompt,
+            style_path,
+            seed=seed,
+            pfb_feature_indices=pfb_feature_indices,
+            style_decay=style_decay,
+            style_strength=style_strength,
+            enable_sac=enable_sac,
+            rank=rank,
+            style_strength_by_step=style_strength_by_step,
+            feature_masks_by_step=feature_masks_by_step,
+            style_masks_by_step=style_masks_by_step,
+            masked_background_strength=masked_background_strength,
+            split_style_regions=split_style_regions,
+            foreground_rank=foreground_rank,
+            background_rank=background_rank,
+        )
+        image = result["stylized_image_01"].detach().float().cpu()
+        del result
+        gc.collect()
+        torch.cuda.empty_cache()
+        return image
+
+    def generate_variant_result(
+        self,
+        prompt,
+        style_path,
+        *,
+        seed=None,
+        pfb_feature_indices,
+        style_decay,
+        style_strength,
+        enable_sac,
+        rank=None,
+        style_strength_by_step=None,
+        feature_masks_by_step=None,
+        style_masks_by_step=None,
+        masked_background_strength=0.0,
+        split_style_regions=False,
+        foreground_rank=None,
+        background_rank=None,
+    ):
+        style_features = self.get_style_features(style_path)
+        with torch.inference_mode():
+            result = self.paper_dual_path_generate(
+                prompt,
+                style_features,
+                seed=seed,
+                pfb_feature_indices=pfb_feature_indices,
+                edit_mode="pfb",
+                rank=rank,
+                style_strength=style_strength,
+                style_decay=style_decay,
+                style_strength_by_step=style_strength_by_step,
+                feature_masks_by_step=feature_masks_by_step,
+                style_masks_by_step=style_masks_by_step,
+                masked_background_strength=masked_background_strength,
+                split_style_regions=split_style_regions,
+                foreground_rank=foreground_rank,
+                background_rank=background_rank,
+                sac_strength=1.0,
+                enable_sac=enable_sac,
+            )
+        result["content_image_01"] = result["content_image_01"].detach().float().cpu()
+        result["stylized_image_01"] = result["stylized_image_01"].detach().float().cpu()
+        result["content_features"] = [feature.detach().float().cpu() for feature in result["content_features"]]
+        result["generation_features"] = [feature.detach().float().cpu() for feature in result["generation_features"]]
+        result["style_features"] = [feature.detach().float().cpu() for feature in style_features]
+        del style_features
+        gc.collect()
+        torch.cuda.empty_cache()
+        return result

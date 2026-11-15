@@ -1,0 +1,17 @@
+*.aux
+*.log
+*.out
+*.toc
+*.synctex.gz
+.runtime/
+__pycache__/
+*.py[cod]
+.ipynb_checkpoints/
+.DS_Store
+outputs/
+output/
+.env/
+weights/
+.pytest_cache/
+.nfs*
+download.htm
