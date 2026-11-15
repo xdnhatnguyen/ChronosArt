@@ -24,7 +24,6 @@ prompts/
 report/*
 !report/Literature Review: SVD-Based Feature Decomposition.pdf
 
-# AutoResearch temporary artifacts
-auto_research/.eval_tmp/
-auto_research/run.log
-auto_research/.last_eval.json
+# Local research tools & autoresearch workspaces (not pushed to GitHub)
+auto_research/
+utils/
