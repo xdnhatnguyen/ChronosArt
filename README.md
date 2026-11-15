@@ -147,9 +147,23 @@ Visit `http://localhost:8088/` in your browser.
 
 ---
 
-## 📜 Acknowledgements
+## 📜 Acknowledgements & Citation
 
-This project implements and builds upon:
-- **Paper:** *"A Training-Free Style-Personalization via SVD-Based Feature Decomposition"*
-- **Base Model:** [FoundationVision Infinity](https://github.com/FoundationVision/Infinity) (Visual Autoregressive Modeling)
-- **Text Conditioning:** Google [FLAN-T5-XL](https://huggingface.co/google/flan-t5-xl)
+We express our gratitude to the authors and open-source maintainers of:
+- **Infinity Repository:** Special thanks to [FoundationVision/Infinity](https://github.com/FoundationVision/Infinity) for providing the foundational visual autoregressive codebase and pre-trained weights.
+- **FLAN-T5-XL:** Google Research for text conditioning embeddings.
+
+### Original Paper Citation
+
+A Training-Free Style-Personalization via SVD-Based Feature Decomposition:
+
+```bibtex
+@InProceedings{Lee_2026_CVPR,
+    author    = {Lee, Kyoungmin and Park, Jihun and Gim, Jongmin and Choi, Wonhyeok and Hwang, Kyumin and Kim, Jaeyeul and Im, Sunghoon},
+    title     = {A Training-Free Style-Personalization via SVD-Based Feature Decomposition},
+    booktitle = {Proceedings of the IEEE/CVF Conference on Computer Vision and Pattern Recognition (CVPR)},
+    month     = {June},
+    year      = {2026},
+    pages     = {506-516}
+}
+```
