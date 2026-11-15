@@ -3,191 +3,252 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>ZooSketch: Living Wildlife in Training-Free Style Personalization</title>
-  <meta name="description" content="ZooSketch: Living Wildlife in Training-Free Style Personalization with Visual Autoregressive Models (Infinity-2B) and Content-Orthogonal Feature Projection.">
+  <title>ChronosArt: Living Wildlife Camera Roll &amp; Stochastic Artistry</title>
+  <meta name="description" content="ChronosArt: Living Wildlife Camera Roll in Training-Free Style Personalization with Visual Autoregressive Models (Infinity-2B) and Content-Orthogonal Feature Projection.">
   <link rel="stylesheet" href="css/style.css">
   <link rel="icon" type="image/png" href="assets/style_pencil_sketch.png">
 </head>
 <body id="top">
 
-  <!-- Subtle Shimmer Particles on Hover -->
+  <!-- Subtle Shimmer Particle Canvas -->
   <canvas id="particle-canvas"></canvas>
 
-  <!-- Top Navigation Bar -->
-  <nav class="top-nav" aria-label="Sections">
+  <!-- Top Sticky Navigation Bar -->
+  <header class="top-nav">
     <div class="nav-container">
-      <a href="#top" class="nav-brand">
-        Zoo<span>Sketch</span>
-      </a>
-      <ul class="nav-links">
-        <li><a href="#stage">Showcase</a></li>
-        <li><a href="#gallery">Gallery</a></li>
-        <li><a href="#method">Method</a></li>
-        <li><a href="#bibtex">BibTeX</a></li>
-      </ul>
-    </div>
-  </nav>
+      <div class="nav-left">
+        <a href="#top" class="nav-brand">
+          Chronos<span>Art</span>
+          <span class="brand-sub">&bull; Wildlife Camera Roll</span>
+        </a>
+      </div>
 
-  <!-- Hero Header: Academic Project Title & Authors -->
-  <header class="hero-header">
-    <h1 class="paper-title">ZooSketch: Living Wildlife in Training-Free Style Personalization</h1>
-    
-    <div class="authors-row">
-      <a href="mailto:nguyenminhnhatcs@gmail.com" class="author-name">Minh-Nhat Nguyen</a>
-    </div>
-    
-    <p class="affiliation">
-      Faculty of Information Technology, University of Science, VNU-HCM (FIT, US-VNUHCM)
-    </p>
+      <!-- Center Status Pill (like Camroll reference) -->
+      <div class="nav-center">
+        <div class="status-pill">
+          <span class="status-dot"></span>
+          <span>drag board to look around &bull; click any snapshot to jump stochastic</span>
+        </div>
+      </div>
 
-    <!-- Paper & Code Link Badges -->
-    <div class="link-badges">
-      <a class="badge-btn" href="https://github.com/xdnhatnguyen/ChronosArt" target="_blank">
-        <svg viewBox="0 0 16 16"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
-        GitHub Code
-      </a>
-      <a class="badge-btn" href="report/report.pdf" target="_blank">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg>
-        Technical Report (PDF)
-      </a>
-      <a class="badge-btn" href="#bibtex">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
-        BibTeX
-      </a>
-    </div>
+      <!-- Right Navigation Actions -->
+      <div class="nav-right">
+        <!-- Style Exhibition Switcher -->
+        <div class="switch-pill">
+          <button class="tab-btn active sketch" id="btn-theme-sketch" title="Switch to Pencil Sketch">
+            <span>✏️ SketchZoo</span>
+          </button>
+          <button class="tab-btn origami" id="btn-theme-origami" title="Switch to Colorful Origami">
+            <span>🎨 OrigamiZoo</span>
+          </button>
+        </div>
 
-    <!-- Style Exhibition Switcher: Sketch vs Origami -->
-    <div class="exhibition-switch-container">
-      <div class="switch-pill">
-        <button class="tab-btn active sketch" id="btn-theme-sketch">
-          <span>✏️ Pencil Sketch</span>
+        <button class="action-btn" id="btn-shuffle" title="Shuffle Camera Roll layout">
+          <span>↺ Shuffle</span>
         </button>
-        <button class="tab-btn origami" id="btn-theme-origami">
-          <span>🎨 Colorful Origami</span>
-        </button>
+
+        <a class="action-btn" href="report/report.pdf" target="_blank" title="Technical Report PDF">
+          <span>📄 Paper</span>
+        </a>
+        <a class="action-btn" href="https://github.com/xdnhatnguyen/ChronosArt" target="_blank" title="GitHub Code">
+          <span>💻 Code</span>
+        </a>
       </div>
     </div>
   </header>
 
-  <!-- Interactive Living Stage Showcase -->
-  <section class="stage-container" id="stage">
-    <div class="stage-card">
-      <div class="stage-main-view">
-        <div class="stage-ambient-word" id="super-backdrop-word">ELEPHANT</div>
+  <!-- Main Camera Roll Whiteboard Canvas -->
+  <main class="board-viewport" id="board-viewport">
+    <div class="board-canvas" id="board-canvas">
+
+      <!-- Central Hero Anchor Card (Floating naturally on the board like Camroll) -->
+      <div class="hero-anchor" id="hero-anchor">
+        <div class="hero-eyebrow">CHRONOSART &bull; TRAINING-FREE STYLE PERSONALIZATION</div>
+        <h1 class="hero-title">
+          If an Autoregressive Model created wildlife art, <mark class="marker-highlight">what would it draw?</mark>
+        </h1>
+        <p class="hero-subtitle">
+          Explore 10 wild species rendered with zero-shot stochastic brushwork &amp; paper folds.
+          Click any polaroid stack to watch its living micro-stroke stochastic sequence.
+        </p>
         
-        <div class="stage-controls-bar">
-          <button class="tool-btn active" id="btn-toggle-living" title="Toggle Stop-Motion Loop">
-            <span class="indicator-dot"></span>
-            <span class="status-text">Living Motion</span>
-          </button>
-          <button class="tool-btn active" id="btn-toggle-bg" title="Toggle SAM Transparent Background">
-            <span>✂️</span>
-            <span class="status-text">Transparent (SAM)</span>
-          </button>
+        <div class="hero-badges">
+          <span class="pill-tag">✨ Infinity-2B AR Model</span>
+          <span class="pill-tag">📐 Content-Orthogonal Projection</span>
+          <span class="pill-tag">🎲 3 Seeds Stochastic Jump</span>
+          <span class="pill-tag">✂️ SAM Cutout</span>
         </div>
 
-        <div class="stage-animal-wrap" id="animal-stage">
-          <!-- Animated Frames Injected by JS -->
+        <div class="hero-tip">
+          <span>👉 Click any animal snapshot or sticky note to inspect live stochastic animation</span>
         </div>
       </div>
 
-      <!-- Stage Bottom Details -->
-      <div class="stage-details">
-        <div class="animal-text-meta">
-          <h2 id="animal-display-name">Majestic Elephant</h2>
-          <div class="latin" id="animal-scientific-name">Loxodonta africana</div>
-          <div class="animal-prompt-badge" id="animal-prompt-badge">
-            Prompt: "A majestic elephant walking forward..."
+      <!-- Camera Roll Animal Photo Stacks Container (Injected by JS) -->
+      <div class="camera-roll-grid" id="camera-roll-grid">
+        <!-- 10 animal polaroid stacks with sticky notes injected dynamically -->
+      </div>
+
+    </div>
+  </main>
+
+  <!-- Interactive Stochastic Spotlight Modal -->
+  <div class="spotlight-overlay" id="spotlight-overlay" aria-hidden="true">
+    <div class="spotlight-modal" id="spotlight-modal">
+      <button class="spotlight-close-btn" id="spotlight-close-btn" title="Close (Esc)">&times;</button>
+      
+      <div class="spotlight-content">
+        <!-- Left: Large Animated Living Stage -->
+        <div class="spotlight-stage">
+          <div class="spotlight-backdrop-word" id="spotlight-backdrop-word">ANIMAL</div>
+          
+          <div class="spotlight-frames-wrap" id="spotlight-frames-wrap">
+            <!-- Animated Frame Images Injected by JS -->
+          </div>
+
+          <!-- Stage Bottom Controls Overlay -->
+          <div class="spotlight-stage-bar">
+            <div class="playback-controls">
+              <button class="stage-control-btn active" id="btn-modal-toggle-play" title="Play/Pause Stochastic Jump">
+                <span class="ctrl-icon" id="play-pause-icon">⏸</span>
+                <span id="play-pause-text">Jumping Live</span>
+              </button>
+
+              <div class="speed-selector" title="Animation Speed">
+                <button class="speed-btn" data-speed="350">Slow</button>
+                <button class="speed-btn active" data-speed="230">Normal</button>
+                <button class="speed-btn" data-speed="140">Fast</button>
+              </div>
+            </div>
+
+            <div class="visual-controls">
+              <button class="stage-control-btn active" id="btn-modal-toggle-cutout" title="Toggle SAM Transparent Background">
+                <span>✂️ Transparent (SAM)</span>
+              </button>
+            </div>
           </div>
         </div>
 
-        <div class="stage-nav-group">
-          <button class="nav-circle-btn" id="btn-prev" aria-label="Previous animal">&#8592;</button>
-          <span style="font-family: var(--font-mono); font-size: 13px; color: var(--text-muted);" id="counter-display">01 / 10</span>
-          <button class="nav-circle-btn" id="btn-next" aria-label="Next animal">&#8594;</button>
-        </div>
-      </div>
+        <!-- Right: Animal Metadata & Seed Scrubber -->
+        <div class="spotlight-meta">
+          <div class="meta-header">
+            <div class="meta-category-badge" id="modal-category">Wildlife</div>
+            <h2 class="meta-title" id="modal-title">Majestic Elephant</h2>
+            <div class="meta-latin" id="modal-latin">Loxodonta africana</div>
+          </div>
 
-      <!-- 10 Animals Thumbnail Strip -->
-      <div class="thumbs-strip" id="thumbs-strip">
-        <!-- Injected by JS -->
-      </div>
-    </div>
-  </section>
+          <!-- Seed Scrubber Selector -->
+          <div class="seed-scrubber-box">
+            <div class="scrubber-label">
+              <span>Stochastic Seeds Variation:</span>
+              <span class="seed-live-tag" id="seed-live-tag">● Seed #42 (Frame 0)</span>
+            </div>
+            <div class="seed-buttons-row">
+              <button class="seed-btn active" data-seed-idx="0">
+                <span class="seed-num">Seed 42</span>
+                <span class="seed-desc">Variant A</span>
+              </button>
+              <button class="seed-btn" data-seed-idx="1">
+                <span class="seed-num">Seed 108</span>
+                <span class="seed-desc">Variant B</span>
+              </button>
+              <button class="seed-btn" data-seed-idx="2">
+                <span class="seed-num">Seed 999</span>
+                <span class="seed-desc">Variant C</span>
+              </button>
+            </div>
+            <p class="seed-hint">
+              Scale-scheduled temperature (&tau; = 0.15 &rarr; 1.25) &amp; fine-scale style token jittering sample unique brushwork contours without distorting anatomy.
+            </p>
+          </div>
 
-  <!-- Wildlife Gallery Grid (10 Animals) -->
-  <section class="section" id="gallery">
-    <h2 class="sec-title">Wildlife Living Gallery</h2>
-    <p class="sec-desc">
-      Each subject is stylized directly from a single reference image using Content-Orthogonal Residual Projection. Hover over any card to view its living stop-motion sketch sequence.
-    </p>
+          <!-- Animal Lore -->
+          <div class="meta-lore-box">
+            <div class="lore-title">Artistic Lore</div>
+            <p class="meta-lore" id="modal-lore">
+              Description of animal style contours.
+            </p>
+          </div>
 
-    <div class="gallery-grid" id="gallery-grid">
-      <!-- Injected by JS -->
-    </div>
-  </section>
+          <!-- Animal Stats -->
+          <div class="meta-stats-grid" id="modal-stats-grid">
+            <!-- Injected by JS -->
+          </div>
 
-  <!-- Technical Method Pipeline -->
-  <section class="section" id="method">
-    <h2 class="sec-title">Method Overview</h2>
-    <p class="sec-desc">
-      ChronosArt introduces an orthogonal residual decomposition pipeline built upon Visual Autoregressive (Infinity-2B) modeling, operating completely training-free in ~2.0s inference latency.
-    </p>
-
-    <div class="pipeline-grid">
-      <div class="pipe-card">
-        <div class="pipe-step-num">STEP 01</div>
-        <div class="pipe-title">Scale-wise AR Prediction</div>
-        <div class="pipe-text">
-          Flan-T5 encodes prompt semantics, while Infinity-2B predicts coarse-to-fine residual feature maps across 10 scales ($1\times 1 \to 64\times 64$).
-        </div>
-      </div>
-
-      <div class="pipe-card">
-        <div class="pipe-step-num">STEP 02</div>
-        <div class="pipe-title">Content-Orthogonal Residual Projection</div>
-        <div class="pipe-text">
-          Orthogonal projector $\mathbf{P}_s^{\perp} = \mathbf{I} - \mathbf{B}_s (\mathbf{B}_s)^\top$ strips content subspace directions from style residuals, preventing leakage.
-        </div>
-      </div>
-
-      <div class="pipe-card">
-        <div class="pipe-step-num">STEP 03</div>
-        <div class="pipe-title">Safe Stochasticity</div>
-        <div class="pipe-text">
-          Low temperature $\tau_{\text{coarse}} = 0.15$ anchors anatomy, while $\tau_{\text{fine}} \in [0.85, 1.25]$ samples distinct micro-stroke textures per seed.
-        </div>
-      </div>
-
-      <div class="pipe-card">
-        <div class="pipe-step-num">STEP 04</div>
-        <div class="pipe-title">SAM / Rembg Segmentation</div>
-        <div class="pipe-text">
-          High-precision matting removes canvas backgrounds, exporting lightweight transparent WebP assets (~40KB) for instant web rendering.
+          <!-- Modal Navigation Bar -->
+          <div class="modal-nav-row">
+            <button class="modal-nav-btn" id="modal-btn-prev" title="Previous animal (&larr;)">
+              &larr; Prev
+            </button>
+            <span class="modal-counter" id="modal-counter">01 / 10</span>
+            <button class="modal-nav-btn" id="modal-btn-next" title="Next animal (&rarr;)">
+              Next &rarr;
+            </button>
+          </div>
         </div>
       </div>
     </div>
-  </section>
+  </div>
 
-  <!-- BibTeX Citation -->
-  <section class="section" id="bibtex">
-    <h2 class="sec-title">BibTeX Citation</h2>
-    <div class="bibtex-box">
-      <button type="button" class="copy-btn" id="copy-bib-btn">Copy</button>
-      <pre class="bibtex-code" id="bib-code">@article{nguyen2026chronosart,
-  title={ChronosArt: Training-Free Style Personalization via Orthogonal Feature Projection in Visual Autoregressive Models},
-  author={Nguyen, Minh-Nhat},
-  journal={arXiv preprint},
-  year={2026}
-}</pre>
+  <!-- Method Overview Section (Clean Academic Pipeline) -->
+  <section class="section method-section" id="method">
+    <div class="section-container">
+      <div class="section-header">
+        <div class="section-eyebrow">THEORY &amp; ARCHITECTURE</div>
+        <h2 class="sec-title">Method Overview</h2>
+        <p class="sec-desc">
+          ChronosArt is a training-free style personalization framework tailored for Visual Autoregressive (Infinity-2B) models, executing in ~2.0s per image without test-time fine-tuning.
+        </p>
+      </div>
+
+      <div class="pipeline-grid">
+        <div class="pipe-card">
+          <div class="pipe-step-num">STEP 01</div>
+          <div class="pipe-title">Scale-wise AR Prediction</div>
+          <div class="pipe-text">
+            Flan-T5 encodes prompt semantics, while Infinity-2B predicts coarse-to-fine residual feature maps across 10 scales ($1\times 1 \to 64\times 64$).
+          </div>
+        </div>
+
+        <div class="pipe-card">
+          <div class="pipe-step-num">STEP 02</div>
+          <div class="pipe-title">Content-Orthogonal Projection</div>
+          <div class="pipe-text">
+            Orthogonal projector $\mathbf{P}_s^{\perp} = \mathbf{I} - \mathbf{B}_s (\mathbf{B}_s)^\top$ strips content subspace directions from style residuals, preventing leakage.
+          </div>
+        </div>
+
+        <div class="pipe-card">
+          <div class="pipe-step-num">STEP 03</div>
+          <div class="pipe-title">Safe Stochasticity</div>
+          <div class="pipe-text">
+            Low temperature $\tau_{\text{coarse}} = 0.15$ anchors anatomy, while $\tau_{\text{fine}} \in [0.85, 1.25]$ combined with spatial token shuffling generates rich stroke diversity.
+          </div>
+        </div>
+
+        <div class="pipe-card">
+          <div class="pipe-step-num">STEP 04</div>
+          <div class="pipe-title">SAM / Rembg Segmentation</div>
+          <div class="pipe-text">
+            Zero-shot segmentation strips background canvas artifacts, producing lightweight transparent WebP assets (~40KB) for fluid browser animation.
+          </div>
+        </div>
+      </div>
     </div>
   </section>
 
   <!-- Clean Footer -->
   <footer class="footer">
-    <p>
-      ZooSketch Project &bull; Powered by <strong>ChronosArt</strong> &bull; FIT, US-VNUHCM
-    </p>
+    <div class="footer-container">
+      <p>
+        ChronosArt &bull; Wildlife Camera Roll &bull; FIT, US-VNUHCM
+      </p>
+      <div class="footer-links">
+        <a href="https://github.com/xdnhatnguyen/ChronosArt" target="_blank">GitHub Repository</a>
+        <a href="report/report.pdf" target="_blank">Technical Report</a>
+        <a href="#top">Back to top &uarr;</a>
+      </div>
+    </div>
   </footer>
 
   <script src="js/app.js"></script>
