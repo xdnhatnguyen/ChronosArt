@@ -20,10 +20,18 @@ download.htm
 styles/
 prompts/
 
-# Report: track only the literature review pdf
-report/*
-!report/Literature Review: SVD-Based Feature Decomposition.pdf
+# Report: track paper source, figures, and literature review pdf
+report/*.aux
+report/*.log
+report/*.out
+report/*.toc
+report/*.synctex.gz
+report/*.brf
+report/report.pdf
+report/Figure/*.png
 
 # Local research tools & autoresearch workspaces (not pushed to GitHub)
 auto_research/
+auto_research_i2i/
+content/
 utils/

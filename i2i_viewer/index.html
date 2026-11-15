@@ -1,0 +1,925 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ChronosArt-I2I Paper Curator & Gallery</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #0b0f19;
+      --card-bg: #131b2e;
+      --card-border: #1e293b;
+      --card-hover: #1e2a47;
+      --accent: #38bdf8;
+      --accent-glow: rgba(56, 189, 248, 0.25);
+      --success: #22c55e;
+      --success-glow: rgba(34, 197, 94, 0.25);
+      --warning: #f59e0b;
+      --danger: #ef4444;
+      --text: #f1f5f9;
+      --text-muted: #94a3b8;
+      --text-sub: #64748b;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background-color: var(--bg);
+      color: var(--text);
+      font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+      line-height: 1.5;
+      padding-bottom: 120px;
+    }
+
+    /* Header */
+    header {
+      background: linear-gradient(180deg, rgba(19, 27, 46, 0.95) 0%, rgba(11, 15, 25, 0.85) 100%);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--card-border);
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      padding: 16px 24px;
+    }
+
+    .header-content {
+      max-width: 1600px;
+      margin: 0 auto;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 16px;
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .brand-logo {
+      width: 40px;
+      height: 40px;
+      border-radius: 10px;
+      background: linear-gradient(135deg, #0284c7, #22c55e);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 800;
+      font-size: 20px;
+      color: white;
+      box-shadow: 0 4px 14px rgba(34, 197, 94, 0.3);
+    }
+
+    .brand-title h1 {
+      font-size: 1.25rem;
+      font-weight: 700;
+      color: #fff;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .brand-title .badge {
+      font-size: 0.7rem;
+      background: rgba(34, 197, 94, 0.15);
+      color: #4ade80;
+      border: 1px solid rgba(34, 197, 94, 0.3);
+      padding: 2px 8px;
+      border-radius: 12px;
+      font-weight: 600;
+    }
+
+    .brand-title p {
+      font-size: 0.8rem;
+      color: var(--text-muted);
+    }
+
+    /* Stats Banner */
+    .stats-bar {
+      display: flex;
+      gap: 12px;
+      background: rgba(15, 23, 42, 0.6);
+      padding: 8px 16px;
+      border-radius: 10px;
+      border: 1px solid var(--card-border);
+      font-size: 0.8rem;
+    }
+
+    .stat-item {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 0 8px;
+      border-right: 1px solid rgba(255,255,255,0.06);
+    }
+    .stat-item:last-child { border-right: none; }
+    .stat-val { font-weight: 700; color: #fff; font-family: 'JetBrains Mono', monospace; }
+    .stat-lbl { font-size: 0.7rem; color: var(--text-sub); }
+
+    /* Control Bar */
+    .controls-wrapper {
+      max-width: 1600px;
+      margin: 16px auto;
+      padding: 0 24px;
+    }
+
+    .controls-bar {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 12px;
+      padding: 14px 20px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 16px;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .filters-group {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      align-items: center;
+    }
+
+    .select-ctrl, .search-ctrl {
+      background: #0f172a;
+      border: 1px solid var(--card-border);
+      color: var(--text);
+      padding: 8px 12px;
+      border-radius: 8px;
+      font-size: 0.85rem;
+      outline: none;
+      transition: all 0.2s;
+    }
+
+    .select-ctrl:focus, .search-ctrl:focus {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 2px var(--accent-glow);
+    }
+
+    .search-ctrl { width: 220px; }
+
+    .quick-picks {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+    }
+
+    .btn-quick {
+      background: rgba(255,255,255,0.05);
+      border: 1px solid var(--card-border);
+      color: var(--text-muted);
+      padding: 6px 12px;
+      border-radius: 6px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .btn-quick:hover {
+      background: var(--card-hover);
+      color: #fff;
+      border-color: var(--accent);
+    }
+
+    .btn-quick.active {
+      background: rgba(56, 189, 248, 0.15);
+      color: var(--accent);
+      border-color: var(--accent);
+    }
+
+    /* Gallery Grid */
+    .gallery-container {
+      max-width: 1600px;
+      margin: 0 auto;
+      padding: 0 24px;
+    }
+
+    .gallery-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(460px, 1fr));
+      gap: 20px;
+    }
+
+    .pair-card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 12px;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      transition: all 0.25s ease;
+      position: relative;
+    }
+
+    .pair-card:hover {
+      border-color: #334155;
+      transform: translateY(-2px);
+      box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+    }
+
+    .pair-card.selected {
+      border-color: var(--success);
+      box-shadow: 0 0 0 2px var(--success-glow), 0 8px 24px rgba(0,0,0,0.5);
+    }
+
+    .card-header {
+      padding: 12px 16px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: rgba(15, 23, 42, 0.4);
+      border-bottom: 1px solid rgba(255,255,255,0.04);
+    }
+
+    .card-title-group {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .select-checkbox {
+      width: 18px;
+      height: 18px;
+      accent-color: var(--success);
+      cursor: pointer;
+    }
+
+    .card-title {
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: #fff;
+    }
+
+    .card-score-pill {
+      background: rgba(56, 189, 248, 0.12);
+      color: var(--accent);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.75rem;
+      font-weight: 700;
+      padding: 3px 8px;
+      border-radius: 6px;
+      border: 1px solid rgba(56, 189, 248, 0.2);
+    }
+
+    /* Images Quad */
+    .images-quad {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 4px;
+      padding: 10px;
+      background: #090d16;
+    }
+
+    .img-box {
+      position: relative;
+      aspect-ratio: 1;
+      border-radius: 6px;
+      overflow: hidden;
+      background: #1e293b;
+      cursor: pointer;
+    }
+
+    .img-box img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+      transition: transform 0.3s;
+    }
+
+    .img-box:hover img {
+      transform: scale(1.05);
+    }
+
+    .img-label {
+      position: absolute;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: linear-gradient(180deg, transparent 0%, rgba(0,0,0,0.85) 100%);
+      font-size: 0.65rem;
+      font-weight: 600;
+      color: #cbd5e1;
+      padding: 8px 4px 3px 4px;
+      text-align: center;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .img-box.ours {
+      outline: 2px solid var(--success);
+      outline-offset: -2px;
+    }
+
+    .img-box.ours .img-label {
+      color: #4ade80;
+      font-weight: 700;
+    }
+
+    /* Metrics Grid */
+    .card-metrics {
+      padding: 10px 14px;
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 6px;
+      background: rgba(15, 23, 42, 0.2);
+      border-top: 1px solid rgba(255,255,255,0.04);
+      font-size: 0.72rem;
+      text-align: center;
+    }
+
+    .metric-cell {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .metric-name {
+      color: var(--text-sub);
+      font-size: 0.65rem;
+      font-weight: 500;
+    }
+
+    .metric-value {
+      font-family: 'JetBrains Mono', monospace;
+      font-weight: 600;
+      color: #e2e8f0;
+    }
+
+    .metric-value.good { color: #4ade80; }
+    .metric-value.medium { color: #38bdf8; }
+
+    /* Floating Paper Action Dock */
+    .action-dock {
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(19, 27, 46, 0.95);
+      backdrop-filter: blur(16px);
+      border: 1px solid #334155;
+      padding: 12px 24px;
+      border-radius: 16px;
+      display: flex;
+      align-items: center;
+      gap: 20px;
+      box-shadow: 0 16px 40px rgba(0,0,0,0.6);
+      z-index: 200;
+    }
+
+    .dock-count {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      color: #fff;
+    }
+
+    .dock-count-badge {
+      background: var(--success);
+      color: #000;
+      font-size: 0.75rem;
+      font-weight: 800;
+      padding: 2px 8px;
+      border-radius: 10px;
+    }
+
+    .btn-dock-action {
+      background: linear-gradient(135deg, #0284c7, #2563eb);
+      color: white;
+      border: none;
+      padding: 10px 18px;
+      border-radius: 8px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      transition: all 0.2s;
+      box-shadow: 0 4px 12px rgba(2, 132, 199, 0.3);
+    }
+
+    .btn-dock-action:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 6px 16px rgba(2, 132, 199, 0.5);
+    }
+
+    .btn-dock-secondary {
+      background: rgba(255,255,255,0.08);
+      color: var(--text);
+      border: 1px solid var(--card-border);
+      padding: 10px 16px;
+      border-radius: 8px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      transition: all 0.2s;
+    }
+
+    .btn-dock-secondary:hover {
+      background: var(--card-hover);
+      border-color: #475569;
+    }
+
+    /* Modal */
+    .modal-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.8);
+      backdrop-filter: blur(8px);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 300;
+      padding: 20px;
+    }
+
+    .modal-overlay.active { display: flex; }
+
+    .modal-card {
+      background: #111827;
+      border: 1px solid #374151;
+      border-radius: 16px;
+      width: 90%;
+      max-width: 1000px;
+      max-height: 90vh;
+      overflow-y: auto;
+      padding: 24px;
+      position: relative;
+    }
+
+    .modal-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 16px;
+      padding-bottom: 12px;
+      border-bottom: 1px solid #1f2937;
+    }
+
+    .modal-title { font-size: 1.2rem; font-weight: 700; color: #fff; }
+    .btn-close {
+      background: none;
+      border: none;
+      color: var(--text-muted);
+      font-size: 1.5rem;
+      cursor: pointer;
+    }
+
+    .code-preview {
+      background: #030712;
+      border: 1px solid #1f2937;
+      border-radius: 8px;
+      padding: 16px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.85rem;
+      color: #93c5fd;
+      white-space: pre-wrap;
+      overflow-x: auto;
+    }
+
+    .grid-preview-img {
+      width: 100%;
+      border-radius: 8px;
+      border: 1px solid #374151;
+      margin-top: 12px;
+    }
+
+    .toast {
+      position: fixed;
+      top: 24px;
+      right: 24px;
+      background: var(--success);
+      color: #000;
+      padding: 10px 18px;
+      border-radius: 8px;
+      font-weight: 700;
+      font-size: 0.85rem;
+      box-shadow: 0 4px 14px rgba(0,0,0,0.4);
+      display: none;
+      z-index: 400;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Toast -->
+  <div id="toast" class="toast">Đã sao chép mã LaTeX thành công!</div>
+
+  <!-- Header -->
+  <header>
+    <div class="header-content">
+      <div class="brand">
+        <div class="brand-logo">CA</div>
+        <div class="brand-title">
+          <h1>ChronosArt-I2I Gallery <span class="badge">Paper Curator</span></h1>
+          <p>Bộ công cụ trực quan hóa và tuyển chọn cặp chuyển giao phong cách đẹp nhất đưa vào bài báo A*</p>
+        </div>
+      </div>
+
+      <div class="stats-bar">
+        <div class="stat-item">
+          <span class="stat-val" id="stat-total">150</span>
+          <span class="stat-lbl">Tổng Cặp (15×10)</span>
+        </div>
+        <div class="stat-item">
+          <span class="stat-val" style="color: #4ade80;">53.16</span>
+          <span class="stat-lbl">DINO (Shape Max)</span>
+        </div>
+        <div class="stat-item">
+          <span class="stat-val" style="color: #38bdf8;">41.29</span>
+          <span class="stat-lbl">CSD (Style Max)</span>
+        </div>
+        <div class="stat-item">
+          <span class="stat-val" style="color: #a78bfa;">82.55</span>
+          <span class="stat-lbl">CLIP-I Max</span>
+        </div>
+        <div class="stat-item">
+          <span class="stat-val" style="color: #facc15;">0.14s</span>
+          <span class="stat-lbl">Tốc độ / Ảnh</span>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <!-- Controls -->
+  <div class="controls-wrapper">
+    <div class="controls-bar">
+      <div class="filters-group">
+        <!-- Search -->
+        <input type="text" id="search-input" class="search-ctrl" placeholder="🔍 Tìm kiếm đối tượng / style...">
+
+        <!-- Content Filter -->
+        <select id="content-filter" class="select-ctrl">
+          <option value="ALL">Tất cả Đối tượng (15)</option>
+        </select>
+
+        <!-- Style Filter -->
+        <select id="style-filter" class="select-ctrl">
+          <option value="ALL">Tất cả Phong cách (10)</option>
+        </select>
+
+        <!-- Sort By -->
+        <select id="sort-select" class="select-ctrl">
+          <option value="harmonic_desc">Sắp xếp: Điểm Harmonic (Cao -> Thấp)</option>
+          <option value="csd_desc">Sắp xếp: Phong cách CSD (Cao -> Thấp)</option>
+          <option value="dino_desc">Sắp xếp: Cấu trúc DINO (Cao -> Thấp)</option>
+          <option value="clip_desc">Sắp xếp: Nội dung CLIP-I (Cao -> Thấp)</option>
+          <option value="dcl_asc">Sắp xếp: Rò rỉ DCL (Thấp -> Cao)</option>
+          <option value="lpips_asc">Sắp xếp: Tri giác LPIPS (Thấp -> Cao)</option>
+        </select>
+      </div>
+
+      <!-- Quick Picks -->
+      <div class="quick-picks">
+        <span style="font-size: 0.75rem; color: var(--text-sub); font-weight: 600;">Tuyển chọn nhanh:</span>
+        <button class="btn-quick" onclick="quickSelect(3)">Top 3 Quán Quân</button>
+        <button class="btn-quick" onclick="quickSelect(5)">Top 5 Paper</button>
+        <button class="btn-quick" onclick="quickSelect(10)">Top 10 Đa dạng</button>
+        <button class="btn-quick" onclick="clearSelection()" style="color: #f87171;">Bỏ chọn</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Gallery -->
+  <div class="gallery-container">
+    <div id="gallery-grid" class="gallery-grid">
+      <!-- Injected by JS -->
+    </div>
+  </div>
+
+  <!-- Floating Paper Action Dock -->
+  <div class="action-dock">
+    <div class="dock-count">
+      <span>Đã chọn:</span>
+      <span id="selected-badge" class="dock-count-badge">0</span>
+    </div>
+
+    <button class="btn-dock-action" onclick="exportGridForPaper()">
+      🖼️ Xuất Ảnh Bảng Paper (PDF / PNG)
+    </button>
+
+    <button class="btn-dock-secondary" onclick="exportLatexSnippet()">
+      📋 Lấy Mã LaTeX Figure
+    </button>
+  </div>
+
+  <!-- Modal -->
+  <div id="modal-overlay" class="modal-overlay" onclick="closeModal(event)">
+    <div class="modal-card" onclick="event.stopPropagation()">
+      <div class="modal-header">
+        <h3 id="modal-title" class="modal-title">Tiêu Đề Modal</h3>
+        <button class="btn-close" onclick="closeModal()">&times;</button>
+      </div>
+      <div id="modal-body"></div>
+    </div>
+  </div>
+
+  <script>
+    let allPairs = [];
+    let selectedSet = new Set();
+
+    async function loadData() {
+      try {
+        const res = await fetch('/data/pairs.json');
+        allPairs = await res.json();
+        
+        populateFilters();
+        renderGallery();
+        
+        // Auto-select Top 3 as initial recommendation for paper
+        quickSelect(3);
+      } catch (e) {
+        console.error("Failed to load pairs.json:", e);
+      }
+    }
+
+    function populateFilters() {
+      const cFilter = document.getElementById('content-filter');
+      const sFilter = document.getElementById('style-filter');
+
+      const contents = [...new Set(allPairs.map(p => p.content_name))].sort();
+      const styles = [...new Set(allPairs.map(p => p.style_name))].sort();
+
+      contents.forEach(c => {
+        const opt = document.createElement('option');
+        opt.value = c;
+        opt.textContent = c.replace(/_/g, ' ').replace(/^\d+\s*/, '').toUpperCase();
+        cFilter.appendChild(opt);
+      });
+
+      styles.forEach(s => {
+        const opt = document.createElement('option');
+        opt.value = s;
+        opt.textContent = s.replace(/_/g, ' ').replace('style ', '').toUpperCase();
+        sFilter.appendChild(opt);
+      });
+
+      // Events
+      document.getElementById('search-input').addEventListener('input', renderGallery);
+      document.getElementById('content-filter').addEventListener('change', renderGallery);
+      document.getElementById('style-filter').addEventListener('change', renderGallery);
+      document.getElementById('sort-select').addEventListener('change', renderGallery);
+    }
+
+    function getFilteredPairs() {
+      const search = document.getElementById('search-input').value.toLowerCase();
+      const cVal = document.getElementById('content-filter').value;
+      const sVal = document.getElementById('style-filter').value;
+      const sortVal = document.getElementById('sort-select').value;
+
+      let filtered = allPairs.filter(p => {
+        if (cVal !== 'ALL' && p.content_name !== cVal) return false;
+        if (sVal !== 'ALL' && p.style_name !== sVal) return false;
+        if (search) {
+          const text = `${p.content_title} ${p.style_title}`.toLowerCase();
+          if (!text.includes(search)) return false;
+        }
+        return true;
+      });
+
+      // Sorting
+      filtered.sort((a, b) => {
+        if (sortVal === 'harmonic_desc') return b.metrics.harmonic - a.metrics.harmonic;
+        if (sortVal === 'csd_desc') return b.metrics.csd - a.metrics.csd;
+        if (sortVal === 'dino_desc') return b.metrics.dino - a.metrics.dino;
+        if (sortVal === 'clip_desc') return b.metrics.clip_i - a.metrics.clip_i;
+        if (sortVal === 'dcl_asc') return a.metrics.dcl - b.metrics.dcl;
+        if (sortVal === 'lpips_asc') return a.metrics.lpips - b.metrics.lpips;
+        return 0;
+      });
+
+      return filtered;
+    }
+
+    function renderGallery() {
+      const grid = document.getElementById('gallery-grid');
+      grid.innerHTML = '';
+      const filtered = getFilteredPairs();
+
+      filtered.forEach(p => {
+        const isSelected = selectedSet.has(p.id);
+        const card = document.createElement('div');
+        card.className = `pair-card ${isSelected ? 'selected' : ''}`;
+        card.id = `card-${p.id}`;
+
+        card.innerHTML = `
+          <div class="card-header">
+            <div class="card-title-group">
+              <input type="checkbox" class="select-checkbox" ${isSelected ? 'checked' : ''} onchange="toggleSelect('${p.id}')">
+              <span class="card-title">${p.content_title} × ${p.style_title}</span>
+            </div>
+            <span class="card-score-pill">★ ${p.metrics.harmonic.toFixed(1)}</span>
+          </div>
+
+          <div class="images-quad">
+            <div class="img-box" onclick="zoomPair('${p.id}')" title="Ảnh Nội Dung Gốc">
+              <img src="${p.content_img}" alt="Content" loading="lazy">
+              <div class="img-label">Content</div>
+            </div>
+            <div class="img-box" onclick="zoomPair('${p.id}')" title="Ảnh Phong Cách Tham Chiếu">
+              <img src="${p.style_img}" alt="Style" loading="lazy">
+              <div class="img-label">Style</div>
+            </div>
+            <div class="img-box" onclick="zoomPair('${p.id}')" title="SVD-base (r=8)">
+              <img src="${p.baseline_img}" alt="SVD-base" loading="lazy" onerror="this.src='${p.content_img}'">
+              <div class="img-label">SVD-base</div>
+            </div>
+            <div class="img-box ours" onclick="zoomPair('${p.id}')" title="ChronosArt-I2I (Đề Xuất)">
+              <img src="${p.ours_img}" alt="ChronosArt-I2I" loading="lazy">
+              <div class="img-label">Đề Xuất ★</div>
+            </div>
+          </div>
+
+          <div class="card-metrics">
+            <div class="metric-cell">
+              <span class="metric-name">CSD (Style)</span>
+              <span class="metric-value ${p.metrics.csd >= 40 ? 'good' : 'medium'}">${p.metrics.csd.toFixed(1)}</span>
+            </div>
+            <div class="metric-cell">
+              <span class="metric-name">DINO (Shape)</span>
+              <span class="metric-value ${p.metrics.dino >= 50 ? 'good' : 'medium'}">${p.metrics.dino.toFixed(1)}</span>
+            </div>
+            <div class="metric-cell">
+              <span class="metric-name">CLIP-I</span>
+              <span class="metric-value">${p.metrics.clip_i.toFixed(1)}</span>
+            </div>
+            <div class="metric-cell">
+              <span class="metric-name">DCL (Leak)</span>
+              <span class="metric-value ${p.metrics.dcl <= 28 ? 'good' : ''}">${p.metrics.dcl.toFixed(1)}</span>
+            </div>
+            <div class="metric-cell">
+              <span class="metric-name">LPIPS</span>
+              <span class="metric-value">${p.metrics.lpips.toFixed(1)}</span>
+            </div>
+          </div>
+        `;
+
+        grid.appendChild(card);
+      });
+
+      updateDock();
+    }
+
+    function toggleSelect(id) {
+      if (selectedSet.has(id)) {
+        selectedSet.delete(id);
+      } else {
+        selectedSet.add(id);
+      }
+      const card = document.getElementById(`card-${id}`);
+      if (card) {
+        card.classList.toggle('selected', selectedSet.has(id));
+        const cb = card.querySelector('.select-checkbox');
+        if (cb) cb.checked = selectedSet.has(id);
+      }
+      updateDock();
+    }
+
+    function updateDock() {
+      document.getElementById('selected-badge').textContent = selectedSet.size;
+    }
+
+    function quickSelect(n) {
+      selectedSet.clear();
+      // Select top N by harmonic
+      const sorted = [...allPairs].sort((a,b) => b.metrics.harmonic - a.metrics.harmonic);
+      sorted.slice(0, n).forEach(p => selectedSet.add(p.id));
+      renderGallery();
+    }
+
+    function clearSelection() {
+      selectedSet.clear();
+      renderGallery();
+    }
+
+    async function exportGridForPaper() {
+      if (selectedSet.size === 0) {
+        alert("Bro vui lòng chọn ít nhất 1 cặp để tạo bảng ảnh cho paper!");
+        return;
+      }
+
+      showModal("Đang Tổng Hợp Bảng Ảnh Chuẩn Paper...", "<p style='color: #94a3b8;'>Đang stitch ảnh độ phân giải cao và xuất PDF 300 DPI...</p>");
+
+      try {
+        const res = await fetch('/api/export_grid', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ pair_ids: Array.from(selectedSet) })
+        });
+        const data = await res.json();
+        if (data.success) {
+          const bodyHtml = `
+            <div style="display: flex; gap: 12px; margin-bottom: 16px;">
+              <a href="${data.pdf_url}" target="_blank" class="btn-dock-action" style="text-decoration: none;">📥 Tải File PDF Vector (In Paper)</a>
+              <a href="${data.png_url}" target="_blank" class="btn-dock-secondary" style="text-decoration: none;">🖼️ Mở Ảnh PNG Độ Phân Giải Cao</a>
+            </div>
+            <p style="font-size: 0.85rem; color: #94a3b8; margin-bottom: 8px;">File đã được lưu vào thư mục paper: <code style="color: #38bdf8;">${data.pdf_path}</code></p>
+            <img src="${data.png_url}?t=${Date.now()}" class="grid-preview-img" alt="Paper Grid Preview">
+          `;
+          showModal(`Bảng So Sánh Paper Hoàn Tất (${data.count} Ca Chọn Lọc)`, bodyHtml);
+        }
+      } catch (e) {
+        showModal("Lỗi", `<p style="color: #ef4444;">Không thể tạo ảnh: ${e}</p>`);
+      }
+    }
+
+    async function exportLatexSnippet() {
+      if (selectedSet.size === 0) {
+        alert("Bro vui lòng chọn ít nhất 1 cặp để sinh mã LaTeX!");
+        return;
+      }
+
+      try {
+        const res = await fetch('/api/export_latex', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ pair_ids: Array.from(selectedSet) })
+        });
+        const data = await res.json();
+        if (data.success) {
+          const bodyHtml = `
+            <p style="color: #94a3b8; font-size: 0.85rem; margin-bottom: 12px;">Bro có thể copy đoạn code này chèn thẳng vào file <code style="color: #38bdf8;">report.tex</code>:</p>
+            <pre class="code-preview" id="latex-code">${data.latex}</pre>
+            <button class="btn-dock-action" style="margin-top: 14px;" onclick="copyCode()">📋 Sao Chép Mã LaTeX Vào Clipboard</button>
+          `;
+          showModal("Mã LaTeX Chuẩn Paper", bodyHtml);
+        }
+      } catch (e) {
+        alert("Lỗi: " + e);
+      }
+    }
+
+    function copyCode() {
+      const code = document.getElementById('latex-code').textContent;
+      navigator.clipboard.writeText(code).then(() => {
+        const toast = document.getElementById('toast');
+        toast.style.display = 'block';
+        setTimeout(() => toast.style.display = 'none', 3000);
+      });
+    }
+
+    function zoomPair(id) {
+      const p = allPairs.find(item => item.id === id);
+      if (!p) return;
+
+      const bodyHtml = `
+        <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 16px;">
+          <div>
+            <p style="text-align: center; font-size: 0.8rem; font-weight: 600; color: #94a3b8; margin-bottom: 6px;">(a) Content Reference</p>
+            <img src="${p.content_img}" style="width: 100%; border-radius: 8px;" alt="Content">
+          </div>
+          <div>
+            <p style="text-align: center; font-size: 0.8rem; font-weight: 600; color: #94a3b8; margin-bottom: 6px;">(b) Style Reference</p>
+            <img src="${p.style_img}" style="width: 100%; border-radius: 8px;" alt="Style">
+          </div>
+          <div>
+            <p style="text-align: center; font-size: 0.8rem; font-weight: 600; color: #94a3b8; margin-bottom: 6px;">(c) SVD-base</p>
+            <img src="${p.baseline_img}" style="width: 100%; border-radius: 8px;" alt="SVD-base">
+          </div>
+          <div>
+            <p style="text-align: center; font-size: 0.8rem; font-weight: 700; color: #4ade80; margin-bottom: 6px;">(d) ChronosArt-I2I (Đề Xuất)</p>
+            <img src="${p.ours_img}" style="width: 100%; border-radius: 8px; outline: 3px solid #22c55e;" alt="Ours">
+          </div>
+        </div>
+
+        <div style="background: #0f172a; border-radius: 10px; padding: 12px; display: flex; justify-content: space-around; font-size: 0.85rem;">
+          <div><span style="color: #64748b;">CSD (Style):</span> <b style="color: #38bdf8;">${p.metrics.csd.toFixed(1)}</b></div>
+          <div><span style="color: #64748b;">DINO (Shape):</span> <b style="color: #4ade80;">${p.metrics.dino.toFixed(1)}</b></div>
+          <div><span style="color: #64748b;">CLIP-I:</span> <b style="color: #fff;">${p.metrics.clip_i.toFixed(1)}</b></div>
+          <div><span style="color: #64748b;">LPIPS:</span> <b style="color: #fff;">${p.metrics.lpips.toFixed(1)}</b></div>
+          <div><span style="color: #64748b;">DCL (Leakage):</span> <b style="color: #facc15;">${p.metrics.dcl.toFixed(1)}</b></div>
+          <div><span style="color: #64748b;">Harmonic:</span> <b style="color: #ec4899;">★ ${p.metrics.harmonic.toFixed(1)}</b></div>
+        </div>
+      `;
+
+      showModal(`${p.content_title} × ${p.style_title}`, bodyHtml);
+    }
+
+    function showModal(title, body) {
+      document.getElementById('modal-title').textContent = title;
+      document.getElementById('modal-body').innerHTML = body;
+      document.getElementById('modal-overlay').classList.add('active');
+    }
+
+    function closeModal(e) {
+      document.getElementById('modal-overlay').classList.remove('active');
+    }
+
+    window.addEventListener('DOMContentLoaded', loadData);
+  </script>
+</body>
+</html>
